@@ -1,0 +1,33 @@
+name: eodin_deeplink
+description: Eodin Deferred Deep Link SDK for Flutter. Enable deferred deep linking to direct users to specific content after app installation.
+version: 1.0.0
+homepage: https://github.com/ahn283/eodin
+repository: https://github.com/ahn283/eodin
+issue_tracker: https://github.com/ahn283/eodin/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  shared_preferences: ^2.2.0
+  device_info_plus: ^9.1.0
+  crypto: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  mocktail: ^1.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: app.eodin.deeplink
+        pluginClass: EodinDeeplinkPlugin
+      ios:
+        pluginClass: EodinDeeplinkPlugin
