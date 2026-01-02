@@ -18,6 +18,7 @@ public final class EodinAnalytics {
     private var apiKey: String?
     private var appId: String?
     private var isDebug = false
+    private var offlineMode = true
 
     // MARK: - State
 
@@ -28,12 +29,8 @@ public final class EodinAnalytics {
     private var attribution: Attribution?
     private var deviceInfo: DeviceInfo?
 
-    // MARK: - Event Queue
+    // MARK: - Queue
 
-    private var eventQueue: [AnalyticsEvent] = []
-    private let maxBatchSize = 20
-    private let flushInterval: TimeInterval = 30
-    private var lastFlushTime: Date?
     private let queue = DispatchQueue(label: "app.eodin.analytics", qos: .utility)
 
     // MARK: - Storage Keys
@@ -56,16 +53,19 @@ public final class EodinAnalytics {
     ///   - apiKey: Your API key for the service
     ///   - appId: Your app ID (e.g., "fridgify", "arden")
     ///   - debug: Enable debug logging
+    ///   - offlineMode: Enable offline event storage (default: true)
     public static func configure(
         apiEndpoint: String,
         apiKey: String,
         appId: String,
-        debug: Bool = false
+        debug: Bool = false,
+        offlineMode: Bool = true
     ) {
         shared.apiEndpoint = apiEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         shared.apiKey = apiKey
         shared.appId = appId
         shared.isDebug = debug
+        shared.offlineMode = offlineMode
 
         // Initialize
         shared.initDeviceId()
@@ -74,7 +74,16 @@ public final class EodinAnalytics {
         shared.initSession()
         shared.initDeviceInfo()
 
-        shared.log("Configured with endpoint: \(apiEndpoint), appId: \(appId)")
+        // Initialize EventQueue for offline support
+        if offlineMode {
+            EventQueue.shared.initialize(
+                apiEndpoint: shared.apiEndpoint!,
+                apiKey: apiKey,
+                debug: debug
+            )
+        }
+
+        shared.log("Configured with endpoint: \(apiEndpoint), appId: \(appId), offlineMode: \(offlineMode)")
     }
 
     /// Check if SDK is properly configured
@@ -127,14 +136,47 @@ public final class EodinAnalytics {
             properties: properties
         )
 
-        shared.queue.async {
-            shared.eventQueue.append(event)
-            shared.log("Queued event: \(eventName) (queue size: \(shared.eventQueue.count))")
-
-            if shared.shouldFlush() {
-                shared.performFlush()
-            }
+        // Use EventQueue for offline support
+        if shared.offlineMode {
+            EventQueue.shared.enqueue(event)
+            shared.log("Enqueued event: \(eventName) (offline mode)")
+        } else {
+            // Legacy direct send
+            shared.sendEventDirect(event)
         }
+    }
+
+    /// Send event directly without queue (legacy mode)
+    private func sendEventDirect(_ event: AnalyticsEvent) {
+        guard let endpoint = apiEndpoint, let apiKey = apiKey else { return }
+        guard let url = URL(string: "\(endpoint)/events/collect") else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+
+        do {
+            let body = ["events": [event]]
+            request.httpBody = try JSONEncoder().encode(body)
+        } catch {
+            log("Failed to encode event: \(error)", isError: true)
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            if let error = error {
+                self?.log("Event send error: \(error)", isError: true)
+                return
+            }
+
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                self?.log("Event sent: \(event.eventName)")
+            } else {
+                self?.log("Event send failed", isError: true)
+            }
+        }.resume()
     }
 
     /// Identify a user
@@ -166,9 +208,19 @@ public final class EodinAnalytics {
 
     /// Flush pending events to the server
     public static func flush() {
-        shared.queue.async {
-            shared.performFlush()
+        if shared.offlineMode {
+            EventQueue.shared.flush()
         }
+    }
+
+    /// Whether currently online (only available in offline mode)
+    public static var isOnline: Bool {
+        return shared.offlineMode ? EventQueue.shared.isOnline : true
+    }
+
+    /// Current queue size (only available in offline mode)
+    public static var queueSize: Int {
+        return shared.offlineMode ? EventQueue.shared.queueSize : 0
     }
 
     /// Start a new session
@@ -198,91 +250,6 @@ public final class EodinAnalytics {
     }
 
     // MARK: - Private Methods
-
-    private func shouldFlush() -> Bool {
-        if eventQueue.count >= maxBatchSize {
-            return true
-        }
-
-        if let lastFlush = lastFlushTime {
-            let elapsed = Date().timeIntervalSince(lastFlush)
-            if elapsed >= flushInterval && !eventQueue.isEmpty {
-                return true
-            }
-        }
-
-        return false
-    }
-
-    private func performFlush() {
-        guard !eventQueue.isEmpty else {
-            log("No events to flush")
-            return
-        }
-
-        guard let endpoint = apiEndpoint,
-              let apiKey = apiKey else {
-            log("SDK not configured. Cannot flush.", isError: true)
-            return
-        }
-
-        let eventsToSend = Array(eventQueue.prefix(maxBatchSize))
-        eventQueue.removeFirst(min(maxBatchSize, eventQueue.count))
-
-        log("Flushing \(eventsToSend.count) events")
-
-        // Build request
-        guard let url = URL(string: "\(endpoint)/events/collect") else {
-            log("Invalid URL", isError: true)
-            eventQueue.insert(contentsOf: eventsToSend, at: 0)
-            return
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
-
-        do {
-            let body = ["events": eventsToSend]
-            request.httpBody = try JSONEncoder().encode(body)
-        } catch {
-            log("Failed to encode events: \(error)", isError: true)
-            eventQueue.insert(contentsOf: eventsToSend, at: 0)
-            return
-        }
-
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                self.log("Flush error: \(error)", isError: true)
-                self.queue.async {
-                    self.eventQueue.insert(contentsOf: eventsToSend, at: 0)
-                }
-                return
-            }
-
-            if let httpResponse = response as? HTTPURLResponse {
-                if httpResponse.statusCode == 200 {
-                    if let data = data,
-                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        self.log("Flush successful: received=\(json["received"] ?? "?"), duplicates=\(json["duplicates"] ?? "?")")
-                    }
-                } else {
-                    self.log("Flush failed: \(httpResponse.statusCode)", isError: true)
-                    self.queue.async {
-                        self.eventQueue.insert(contentsOf: eventsToSend, at: 0)
-                    }
-                }
-            }
-
-            self.lastFlushTime = Date()
-        }
-
-        task.resume()
-    }
 
     private func initDeviceId() {
         if let storedId = UserDefaults.standard.string(forKey: deviceIdKey) {
@@ -332,13 +299,8 @@ public final class EodinAnalytics {
 
     private func initDeviceInfo() {
         #if os(iOS)
-        let device = UIDevice.current
-        deviceInfo = DeviceInfo(
-            os: "ios",
-            osVersion: device.systemVersion,
-            model: device.model,
-            locale: Locale.current.identifier
-        )
+        // Use ATTManager to get device info with ATT status and IDFA
+        deviceInfo = ATTManager.shared.getDeviceInfo()
         #elseif os(macOS)
         deviceInfo = DeviceInfo(
             os: "macos",
@@ -349,6 +311,56 @@ public final class EodinAnalytics {
         #endif
 
         log("Device info: \(String(describing: deviceInfo))")
+    }
+
+    /// Refresh device info (call after ATT status changes)
+    public static func refreshDeviceInfo() {
+        #if os(iOS)
+        shared.deviceInfo = ATTManager.shared.getDeviceInfo()
+        shared.log("Refreshed device info: \(String(describing: shared.deviceInfo))")
+        #endif
+    }
+
+    /// Request ATT authorization and update device info
+    /// - Parameter completion: Callback with the ATT status
+    public static func requestTrackingAuthorization(completion: @escaping (ATTStatus) -> Void) {
+        #if os(iOS)
+        ATTManager.shared.requestAuthorization { status in
+            // Refresh device info to capture IDFA if authorized
+            refreshDeviceInfo()
+            completion(status)
+        }
+        #else
+        completion(.unknown)
+        #endif
+    }
+
+    /// Request ATT authorization (async version)
+    @available(iOS 13.0, *)
+    public static func requestTrackingAuthorization() async -> ATTStatus {
+        await withCheckedContinuation { continuation in
+            requestTrackingAuthorization { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+
+    /// Current ATT status
+    public static var attStatus: ATTStatus {
+        #if os(iOS)
+        return ATTManager.shared.status
+        #else
+        return .unknown
+        #endif
+    }
+
+    /// Current IDFA (nil if not authorized)
+    public static var idfa: String? {
+        #if os(iOS)
+        return ATTManager.shared.idfa
+        #else
+        return nil
+        #endif
     }
 
     private func log(_ message: String, isError: Bool = false) {
@@ -374,7 +386,9 @@ public final class EodinAnalytics {
         shared.sessionId = nil
         shared.attribution = nil
         shared.deviceInfo = nil
-        shared.eventQueue.removeAll()
-        shared.lastFlushTime = nil
+        shared.offlineMode = true
+
+        // Reset EventQueue
+        EventQueue.shared.reset()
     }
 }

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/event.dart';
+import 'event_queue.dart';
 
 /// Eodin Analytics SDK for Flutter
 ///
@@ -44,12 +45,7 @@ class EodinAnalytics {
   static DeviceInfo? _deviceInfo;
   static bool _debug = false;
   static http.Client? _httpClient;
-
-  // Event queue for batching
-  static final List<AnalyticsEvent> _eventQueue = [];
-  static const int _maxBatchSize = 20;
-  static const Duration _flushInterval = Duration(seconds: 30);
-  static DateTime? _lastFlushTime;
+  static bool _offlineMode = true; // Enable offline support by default
 
   // Storage keys
   static const String _deviceIdKey = 'eodin_device_id';
@@ -66,12 +62,14 @@ class EodinAnalytics {
   /// [apiKey] - Your API key for the service
   /// [appId] - Your app ID (e.g., 'fridgify', 'arden')
   /// [debug] - Enable debug logging
+  /// [offlineMode] - Enable offline event storage (default: true)
   /// [httpClient] - Optional HTTP client for testing
   static Future<void> configure({
     required String apiEndpoint,
     required String apiKey,
     required String appId,
     bool debug = false,
+    bool offlineMode = true,
     http.Client? httpClient,
   }) async {
     _apiEndpoint = apiEndpoint.endsWith('/')
@@ -80,6 +78,7 @@ class EodinAnalytics {
     _apiKey = apiKey;
     _appId = appId;
     _debug = debug;
+    _offlineMode = offlineMode;
     _httpClient = httpClient;
 
     // Initialize device ID
@@ -97,7 +96,17 @@ class EodinAnalytics {
     // Get device info
     await _initDeviceInfo();
 
-    _log('Configured with endpoint: $_apiEndpoint, appId: $_appId');
+    // Initialize EventQueue for offline support
+    if (_offlineMode) {
+      await EventQueue.instance.initialize(
+        apiEndpoint: _apiEndpoint!,
+        apiKey: _apiKey!,
+        debug: _debug,
+        httpClient: _httpClient,
+      );
+    }
+
+    _log('Configured with endpoint: $_apiEndpoint, appId: $_appId, offlineMode: $_offlineMode');
   }
 
   /// Whether the SDK has been configured
@@ -140,12 +149,43 @@ class EodinAnalytics {
       properties: properties,
     );
 
-    _eventQueue.add(event);
-    _log('Queued event: $eventName (queue size: ${_eventQueue.length})');
+    // Use EventQueue for offline support
+    if (_offlineMode) {
+      await EventQueue.instance.enqueue(event);
+      _log('Enqueued event: $eventName (offline mode)');
+    } else {
+      // Legacy direct send mode
+      await _sendEventDirect(event);
+    }
+  }
 
-    // Check if we should flush
-    if (_shouldFlush()) {
-      await flush();
+  /// Send event directly without queue (legacy mode)
+  static Future<void> _sendEventDirect(AnalyticsEvent event) async {
+    final client = _httpClient ?? http.Client();
+    try {
+      final response = await client.post(
+        Uri.parse('$_apiEndpoint/events/collect'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-API-Key': _apiKey!,
+        },
+        body: jsonEncode({
+          'events': [event.toJson()],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        _log('Event sent: ${event.eventName}');
+      } else {
+        _log('Event send failed: ${response.statusCode}', isError: true);
+      }
+    } catch (e) {
+      _log('Event send error: $e', isError: true);
+    } finally {
+      if (_httpClient == null) {
+        client.close();
+      }
     }
   }
 
@@ -187,55 +227,21 @@ class EodinAnalytics {
 
   /// Flush pending events to the server
   static Future<void> flush() async {
-    if (_eventQueue.isEmpty) {
-      _log('No events to flush');
-      return;
-    }
-
     if (!isConfigured) {
       _log('SDK not configured. Cannot flush.', isError: true);
       return;
     }
 
-    // Take up to _maxBatchSize events
-    final eventsToSend = _eventQueue.take(_maxBatchSize).toList();
-    _eventQueue.removeRange(0, eventsToSend.length);
-
-    _log('Flushing ${eventsToSend.length} events');
-
-    final client = _httpClient ?? http.Client();
-    try {
-      final response = await client.post(
-        Uri.parse('$_apiEndpoint/events/collect'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-API-Key': _apiKey!,
-        },
-        body: jsonEncode({
-          'events': eventsToSend.map((e) => e.toJson()).toList(),
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        _log('Flush successful: received=${json['received']}, duplicates=${json['duplicates']}');
-      } else {
-        _log('Flush failed: ${response.statusCode} - ${response.body}', isError: true);
-        // Re-queue failed events
-        _eventQueue.insertAll(0, eventsToSend);
-      }
-    } catch (e) {
-      _log('Flush error: $e', isError: true);
-      // Re-queue failed events
-      _eventQueue.insertAll(0, eventsToSend);
-    } finally {
-      if (_httpClient == null) {
-        client.close();
-      }
-      _lastFlushTime = DateTime.now();
+    if (_offlineMode) {
+      await EventQueue.instance.flush();
     }
   }
+
+  /// Whether currently online (only available in offline mode)
+  static bool get isOnline => _offlineMode ? EventQueue.instance.isOnline : true;
+
+  /// Current queue size (only available in offline mode)
+  static int get queueSize => _offlineMode ? EventQueue.instance.queueSize : 0;
 
   /// Start a new session
   static Future<void> startSession() async {
@@ -266,23 +272,6 @@ class EodinAnalytics {
   }
 
   // Private methods
-
-  static bool _shouldFlush() {
-    // Flush if queue is full
-    if (_eventQueue.length >= _maxBatchSize) {
-      return true;
-    }
-
-    // Flush if enough time has passed
-    if (_lastFlushTime != null) {
-      final elapsed = DateTime.now().difference(_lastFlushTime!);
-      if (elapsed >= _flushInterval && _eventQueue.isNotEmpty) {
-        return true;
-      }
-    }
-
-    return false;
-  }
 
   static Future<void> _initDeviceId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -395,7 +384,9 @@ class EodinAnalytics {
     _attribution = null;
     _deviceInfo = null;
     _httpClient = null;
-    _eventQueue.clear();
-    _lastFlushTime = null;
+    _offlineMode = true;
+
+    // Reset EventQueue
+    await EventQueue.instance.reset();
   }
 }
