@@ -1,23 +1,11 @@
 /// Result of deferred parameters check
 class DeferredParamsResult {
-  /// The deep link path to navigate to
-  final String? path;
-
-  /// The resource ID from the URL
-  final String? resourceId;
-
-  /// Additional metadata
-  final Map<String, dynamic>? metadata;
-
   /// Creates a new [DeferredParamsResult]
   const DeferredParamsResult({
     this.path,
     this.resourceId,
     this.metadata,
   });
-
-  /// Whether this result contains deferred parameters
-  bool get hasParams => path != null || resourceId != null;
 
   /// Creates a [DeferredParamsResult] from JSON
   factory DeferredParamsResult.fromJson(Map<String, dynamic> json) {
@@ -27,6 +15,18 @@ class DeferredParamsResult {
       metadata: json['metadata'] as Map<String, dynamic>?,
     );
   }
+
+  /// The deep link path to navigate to
+  final String? path;
+
+  /// The resource ID from the URL
+  final String? resourceId;
+
+  /// Additional metadata
+  final Map<String, dynamic>? metadata;
+
+  /// Whether this result contains deferred parameters
+  bool get hasParams => path != null || resourceId != null;
 
   /// Converts this result to JSON
   Map<String, dynamic> toJson() {

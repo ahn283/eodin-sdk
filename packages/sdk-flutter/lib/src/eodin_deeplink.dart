@@ -7,8 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'analytics/eodin_analytics.dart';
 import 'exceptions/eodin_exception.dart';
 import 'models/deferred_params_result.dart';
+import 'models/event.dart';
 
 /// Eodin Deferred Deep Link SDK
 ///
@@ -36,14 +38,14 @@ import 'models/deferred_params_result.dart';
 /// }
 /// ```
 class EodinDeeplink {
+  /// Private constructor to prevent instantiation
+  EodinDeeplink._();
+
   static String? _apiEndpoint;
   static String? _service;
   static http.Client? _httpClient;
 
   static const String _claimedKey = 'eodin_deferred_claimed';
-
-  /// Private constructor to prevent instantiation
-  EodinDeeplink._();
 
   /// Configure the SDK with API endpoint and service ID
   ///
@@ -133,6 +135,13 @@ class EodinDeeplink {
             print('[EodinDeeplink] Found deferred params: $result');
           }
 
+          // Store attribution if available in metadata
+          // Use fire-and-forget pattern to prevent analytics failures from affecting deeplink
+          final metadata = result.metadata;
+          if (metadata != null && EodinAnalytics.isConfigured) {
+            _storeAttributionAsync(metadata);
+          }
+
           return result;
         }
       }
@@ -192,5 +201,56 @@ class EodinDeeplink {
     _apiEndpoint = null;
     _service = null;
     _httpClient = null;
+  }
+
+  /// Store attribution asynchronously (fire-and-forget)
+  /// This prevents analytics failures from affecting the deeplink flow
+  static void _storeAttributionAsync(Map<String, dynamic> metadata) {
+    Future(() async {
+      try {
+        final attribution = _extractAttribution(metadata);
+        if (attribution != null && attribution.hasData) {
+          await EodinAnalytics.setAttribution(attribution);
+          if (kDebugMode) {
+            print('[EodinDeeplink] Stored attribution: $attribution');
+          }
+        }
+      } catch (e) {
+        // Log but don't propagate error - analytics should not affect deeplink
+        if (kDebugMode) {
+          print('[EodinDeeplink] Failed to store attribution (non-critical): $e');
+        }
+      }
+    });
+  }
+
+  /// Extract attribution from metadata
+  static Attribution? _extractAttribution(Map<String, dynamic> metadata) {
+    // Check if there's any attribution data
+    final hasAttribution = metadata.containsKey('utmSource') ||
+        metadata.containsKey('utm_source') ||
+        metadata.containsKey('source') ||
+        metadata.containsKey('clickId') ||
+        metadata.containsKey('click_id') ||
+        metadata.containsKey('campaignId') ||
+        metadata.containsKey('campaign_id');
+
+    if (!hasAttribution) {
+      return null;
+    }
+
+    return Attribution(
+      source: metadata['source'] as String?,
+      campaignId: metadata['campaign_id'] as String? ?? metadata['campaignId'] as String?,
+      adsetId: metadata['adset_id'] as String? ?? metadata['adsetId'] as String?,
+      adId: metadata['ad_id'] as String? ?? metadata['adId'] as String?,
+      clickId: metadata['click_id'] as String? ?? metadata['clickId'] as String?,
+      clickIdType: metadata['click_id_type'] as String? ?? metadata['clickIdType'] as String?,
+      utmSource: metadata['utm_source'] as String? ?? metadata['utmSource'] as String?,
+      utmMedium: metadata['utm_medium'] as String? ?? metadata['utmMedium'] as String?,
+      utmCampaign: metadata['utm_campaign'] as String? ?? metadata['utmCampaign'] as String?,
+      utmContent: metadata['utm_content'] as String? ?? metadata['utmContent'] as String?,
+      utmTerm: metadata['utm_term'] as String? ?? metadata['utmTerm'] as String?,
+    );
   }
 }

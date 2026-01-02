@@ -20,8 +20,17 @@
 ///   runApp(MyApp());
 /// }
 /// ```
+///
+/// For full SDK functionality including Analytics, use:
+/// ```dart
+/// import 'package:eodin_deeplink/eodin_sdk.dart';
+/// ```
 library eodin_deeplink;
 
 export 'src/eodin_deeplink.dart';
 export 'src/models/deferred_params_result.dart';
 export 'src/exceptions/eodin_exception.dart';
+
+// Also export analytics for convenience
+export 'src/analytics/eodin_analytics.dart';
+export 'src/models/event.dart';

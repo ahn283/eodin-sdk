@@ -1,10 +1,10 @@
 /// Base exception for Eodin SDK errors
 class EodinException implements Exception {
-  /// Error message
-  final String message;
-
   /// Creates a new [EodinException]
   const EodinException(this.message);
+
+  /// Error message
+  final String message;
 
   @override
   String toString() => 'EodinException: $message';
@@ -26,11 +26,11 @@ class NoParamsFoundException extends EodinException {
 
 /// Exception thrown when a network error occurs
 class NetworkException extends EodinException {
-  /// The underlying error
-  final dynamic error;
-
   /// Creates a new [NetworkException]
   const NetworkException(this.error) : super('Network error occurred');
+
+  /// The underlying error
+  final dynamic error;
 
   @override
   String toString() => 'NetworkException: $message ($error)';
@@ -38,11 +38,11 @@ class NetworkException extends EodinException {
 
 /// Exception thrown when the API returns an error
 class ApiException extends EodinException {
-  /// HTTP status code
-  final int statusCode;
-
   /// Creates a new [ApiException]
   const ApiException(this.statusCode, String message) : super(message);
+
+  /// HTTP status code
+  final int statusCode;
 
   @override
   String toString() => 'ApiException [$statusCode]: $message';
