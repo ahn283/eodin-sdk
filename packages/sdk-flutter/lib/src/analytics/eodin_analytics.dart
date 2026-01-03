@@ -46,6 +46,7 @@ class EodinAnalytics {
   static bool _debug = false;
   static http.Client? _httpClient;
   static bool _offlineMode = true; // Enable offline support by default
+  static bool _isEnabled = true; // GDPR compliance flag
 
   // Storage keys
   static const String _deviceIdKey = 'eodin_device_id';
@@ -53,6 +54,7 @@ class EodinAnalytics {
   static const String _attributionKey = 'eodin_attribution';
   static const String _sessionIdKey = 'eodin_session_id';
   static const String _sessionStartKey = 'eodin_session_start';
+  static const String _enabledKey = 'eodin_enabled';
 
   /// Configure the Analytics SDK
   ///
@@ -96,6 +98,9 @@ class EodinAnalytics {
     // Get device info
     await _initDeviceInfo();
 
+    // Load GDPR enabled state
+    await _loadEnabledState();
+
     // Initialize EventQueue for offline support
     if (_offlineMode) {
       await EventQueue.instance.initialize(
@@ -135,6 +140,12 @@ class EodinAnalytics {
   }) async {
     if (!isConfigured) {
       _log('SDK not configured. Call configure() first.', isError: true);
+      return;
+    }
+
+    // GDPR compliance check
+    if (!_isEnabled) {
+      _log('Tracking disabled by user (GDPR). Skipping event: $eventName');
       return;
     }
 
@@ -271,6 +282,96 @@ class EodinAnalytics {
     _sessionId = null;
   }
 
+  // ATT & GDPR Methods
+
+  /// Set iOS App Tracking Transparency (ATT) status
+  ///
+  /// Call this after requesting ATT permission on iOS.
+  /// This updates the device info with ATT status and IDFA (if authorized).
+  ///
+  /// [attStatus] - ATT status ('authorized', 'denied', 'not_determined', 'restricted')
+  /// [idfa] - IDFA string (only when authorized)
+  static Future<void> setDeviceATT({
+    required String attStatus,
+    String? idfa,
+  }) async {
+    if (_deviceInfo == null) {
+      _log('Device info not initialized. Call configure() first.', isError: true);
+      return;
+    }
+
+    _deviceInfo = DeviceInfo(
+      os: _deviceInfo!.os,
+      osVersion: _deviceInfo!.osVersion,
+      model: _deviceInfo!.model,
+      locale: _deviceInfo!.locale,
+      attStatus: attStatus,
+      idfa: idfa,
+    );
+
+    _log('Updated device ATT: status=$attStatus, hasIDFA=${idfa != null}');
+  }
+
+  /// Whether analytics tracking is enabled
+  static bool get isEnabled => _isEnabled;
+
+  /// Enable or disable analytics tracking (GDPR compliance)
+  ///
+  /// When disabled:
+  /// - No events will be tracked
+  /// - No data will be sent to the server
+  static Future<void> setEnabled(bool enabled) async {
+    _isEnabled = enabled;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_enabledKey, enabled);
+
+    _log('Analytics ${enabled ? 'enabled' : 'disabled'}');
+  }
+
+  /// Request deletion of all user data (GDPR right to erasure)
+  ///
+  /// Returns true if the deletion request was successful.
+  static Future<bool> requestDataDeletion() async {
+    if (!isConfigured) {
+      _log('SDK not configured. Cannot request data deletion.', isError: true);
+      return false;
+    }
+
+    final client = _httpClient ?? http.Client();
+    bool success = false;
+
+    try {
+      final response = await client.delete(
+        Uri.parse('$_apiEndpoint/user-data'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-API-Key': _apiKey!,
+          'X-Device-ID': _deviceId!,
+        },
+        body: jsonEncode({
+          'device_id': _deviceId,
+          'user_id': _userId,
+          'app_id': _appId,
+        }),
+      );
+
+      success = response.statusCode == 200 || response.statusCode == 202;
+      _log('Data deletion request: ${success ? 'successful' : 'failed (${response.statusCode})'}');
+    } catch (e) {
+      _log('Data deletion request error: $e', isError: true);
+    } finally {
+      if (_httpClient == null) {
+        client.close();
+      }
+    }
+
+    // Clear local data regardless of server response
+    await _clearLocalData();
+    return success;
+  }
+
   // Private methods
 
   static Future<void> _initDeviceId() async {
@@ -362,6 +463,38 @@ class EodinAnalytics {
     }
   }
 
+  static Future<void> _loadEnabledState() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isEnabled = prefs.getBool(_enabledKey) ?? true;
+    _log('Loaded enabled state: $_isEnabled');
+  }
+
+  static Future<void> _clearLocalData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Clear all SDK-related data
+    await prefs.remove(_deviceIdKey);
+    await prefs.remove(_userIdKey);
+    await prefs.remove(_attributionKey);
+    await prefs.remove(_sessionIdKey);
+    await prefs.remove(_sessionStartKey);
+    await prefs.remove(_enabledKey);
+
+    // Clear EventQueue data
+    if (_offlineMode) {
+      await EventQueue.instance.reset();
+    }
+
+    // Reset in-memory state
+    _deviceId = null;
+    _userId = null;
+    _attribution = null;
+    _sessionId = null;
+    _isEnabled = true;
+
+    _log('Cleared all local data');
+  }
+
   static void _log(String message, {bool isError = false}) {
     if (_debug || kDebugMode) {
       if (isError) {
@@ -385,6 +518,7 @@ class EodinAnalytics {
     _deviceInfo = null;
     _httpClient = null;
     _offlineMode = true;
+    _isEnabled = true;
 
     // Reset EventQueue
     await EventQueue.instance.reset();
