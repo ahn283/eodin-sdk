@@ -73,12 +73,23 @@ class EventQueue {
     _debug = debug;
     _httpClient = httpClient;
 
-    // Initialize Hive
+    // Initialize Hive - handle case where app already initialized Hive
     try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      Hive.init('${appDocDir.path}/eodin_analytics');
-      _eventBox = await Hive.openBox<String>(_boxName);
-      _log('Hive initialized with ${_eventBox!.length} stored events');
+      // First, try to open box directly (works if Hive already initialized by app)
+      if (!Hive.isBoxOpen(_boxName)) {
+        try {
+          _eventBox = await Hive.openBox<String>(_boxName);
+        } catch (e) {
+          // If openBox fails, Hive might not be initialized yet (standalone SDK usage)
+          _log('Box open failed, initializing Hive: $e');
+          final appDocDir = await getApplicationDocumentsDirectory();
+          Hive.init('${appDocDir.path}/eodin_analytics');
+          _eventBox = await Hive.openBox<String>(_boxName);
+        }
+      } else {
+        _eventBox = Hive.box<String>(_boxName);
+      }
+      _log('Hive box ready with ${_eventBox!.length} stored events');
     } catch (e) {
       _log('Failed to initialize Hive: $e', isError: true);
     }
