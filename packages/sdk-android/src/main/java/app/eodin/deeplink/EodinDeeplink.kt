@@ -1,12 +1,15 @@
 package app.eodin.deeplink
 
 import android.content.Context
+import app.eodin.analytics.EodinAnalytics
+import app.eodin.analytics.models.Attribution
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.Executors
 import org.json.JSONObject
 
 /**
@@ -116,6 +119,13 @@ object EodinDeeplink {
                             android.util.Log.d(TAG, "Found deferred params: path=${result.path}, resourceId=${result.resourceId}")
                         }
 
+                        // Store attribution if available (fire-and-forget)
+                        result.metadata?.let { metadata ->
+                            if (EodinAnalytics.isConfigured) {
+                                storeAttributionAsync(metadata)
+                            }
+                        }
+
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                             callback(Result.success(result))
                         }
@@ -192,11 +202,20 @@ object EodinDeeplink {
                     val response = readResponse(connection)
                     val json = JSONObject(response)
 
-                    DeferredParamsResult(
+                    val result = DeferredParamsResult(
                         path = json.optString("deeplinkPath", null),
                         resourceId = json.optString("resourceId", null),
                         metadata = parseMetadata(json.optJSONObject("metadata"))
                     )
+
+                    // Store attribution if available (fire-and-forget)
+                    result.metadata?.let { metadata ->
+                        if (EodinAnalytics.isConfigured) {
+                            storeAttributionAsync(metadata)
+                        }
+                    }
+
+                    result
                 }
 
                 HttpURLConnection.HTTP_NOT_FOUND -> {
@@ -240,6 +259,63 @@ object EodinDeeplink {
             }
         }
         return if (map.isEmpty()) null else map
+    }
+
+    // Attribution Storage
+
+    private val attributionExecutor = Executors.newSingleThreadExecutor()
+
+    /**
+     * Store attribution asynchronously (fire-and-forget).
+     * This prevents analytics failures from affecting the deeplink flow.
+     */
+    private fun storeAttributionAsync(metadata: Map<String, Any>) {
+        attributionExecutor.execute {
+            try {
+                val attribution = extractAttribution(metadata)
+                if (attribution != null && attribution.hasData) {
+                    EodinAnalytics.setAttribution(attribution)
+                    if (BuildConfig.DEBUG) {
+                        android.util.Log.d(TAG, "Stored attribution: $attribution")
+                    }
+                }
+            } catch (e: Exception) {
+                // Log but don't propagate error - analytics should not affect deeplink
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.w(TAG, "Failed to store attribution (non-critical): ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Extract attribution from metadata.
+     */
+    private fun extractAttribution(metadata: Map<String, Any>): Attribution? {
+        // Check if there's any attribution data
+        val hasAttribution = metadata.containsKey("utmSource") ||
+            metadata.containsKey("utm_source") ||
+            metadata.containsKey("source") ||
+            metadata.containsKey("clickId") ||
+            metadata.containsKey("click_id") ||
+            metadata.containsKey("campaignId") ||
+            metadata.containsKey("campaign_id")
+
+        if (!hasAttribution) return null
+
+        return Attribution(
+            source = metadata["source"] as? String,
+            campaignId = (metadata["campaign_id"] as? String) ?: (metadata["campaignId"] as? String),
+            adsetId = (metadata["adset_id"] as? String) ?: (metadata["adsetId"] as? String),
+            adId = (metadata["ad_id"] as? String) ?: (metadata["adId"] as? String),
+            clickId = (metadata["click_id"] as? String) ?: (metadata["clickId"] as? String),
+            clickIdType = (metadata["click_id_type"] as? String) ?: (metadata["clickIdType"] as? String),
+            utmSource = (metadata["utm_source"] as? String) ?: (metadata["utmSource"] as? String),
+            utmMedium = (metadata["utm_medium"] as? String) ?: (metadata["utmMedium"] as? String),
+            utmCampaign = (metadata["utm_campaign"] as? String) ?: (metadata["utmCampaign"] as? String),
+            utmContent = (metadata["utm_content"] as? String) ?: (metadata["utmContent"] as? String),
+            utmTerm = (metadata["utm_term"] as? String) ?: (metadata["utmTerm"] as? String)
+        )
     }
 
     private const val TAG = "EodinDeeplink"

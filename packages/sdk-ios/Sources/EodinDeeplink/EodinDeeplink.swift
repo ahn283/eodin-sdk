@@ -2,6 +2,7 @@ import Foundation
 #if canImport(UIKit)
 import UIKit
 #endif
+import EodinAnalytics
 
 /// Eodin Deferred Deep Link SDK for iOS
 /// Enables apps to retrieve deferred deep link parameters after installation
@@ -160,6 +161,11 @@ public final class EodinDeeplink {
                         print("[EodinDeeplink] Found deferred params: path=\(path ?? "nil"), resourceId=\(resourceId ?? "nil")")
                         #endif
 
+                        // Store attribution if available (fire-and-forget)
+                        if let metadata = metadata, EodinAnalytics.isConfigured {
+                            Self.storeAttributionAsync(metadata: metadata)
+                        }
+
                         DispatchQueue.main.async {
                             completion(.success(result))
                         }
@@ -214,5 +220,51 @@ public final class EodinDeeplink {
                 }
             }
         }
+    }
+
+    // MARK: - Attribution Storage
+
+    /// Store attribution asynchronously (fire-and-forget)
+    /// This prevents analytics failures from affecting the deeplink flow
+    private static func storeAttributionAsync(metadata: [String: Any]) {
+        DispatchQueue.global(qos: .utility).async {
+            guard let attribution = extractAttribution(from: metadata), attribution.hasData else {
+                return
+            }
+
+            EodinAnalytics.setAttribution(attribution)
+
+            #if DEBUG
+            print("[EodinDeeplink] Stored attribution: \(attribution)")
+            #endif
+        }
+    }
+
+    /// Extract attribution from metadata
+    private static func extractAttribution(from metadata: [String: Any]) -> Attribution? {
+        // Check if there's any attribution data
+        let hasAttribution = metadata["utmSource"] != nil ||
+            metadata["utm_source"] != nil ||
+            metadata["source"] != nil ||
+            metadata["clickId"] != nil ||
+            metadata["click_id"] != nil ||
+            metadata["campaignId"] != nil ||
+            metadata["campaign_id"] != nil
+
+        guard hasAttribution else { return nil }
+
+        return Attribution(
+            source: metadata["source"] as? String,
+            campaignId: (metadata["campaign_id"] as? String) ?? (metadata["campaignId"] as? String),
+            adsetId: (metadata["adset_id"] as? String) ?? (metadata["adsetId"] as? String),
+            adId: (metadata["ad_id"] as? String) ?? (metadata["adId"] as? String),
+            clickId: (metadata["click_id"] as? String) ?? (metadata["clickId"] as? String),
+            clickIdType: (metadata["click_id_type"] as? String) ?? (metadata["clickIdType"] as? String),
+            utmSource: (metadata["utm_source"] as? String) ?? (metadata["utmSource"] as? String),
+            utmMedium: (metadata["utm_medium"] as? String) ?? (metadata["utmMedium"] as? String),
+            utmCampaign: (metadata["utm_campaign"] as? String) ?? (metadata["utmCampaign"] as? String),
+            utmContent: (metadata["utm_content"] as? String) ?? (metadata["utmContent"] as? String),
+            utmTerm: (metadata["utm_term"] as? String) ?? (metadata["utmTerm"] as? String)
+        )
     }
 }
