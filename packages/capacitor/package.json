@@ -15,7 +15,8 @@
     "android/",
     "ios/",
     "dist/",
-    "*.podspec"
+    "*.podspec",
+    "Package.swift"
   ],
   "keywords": [
     "capacitor",
