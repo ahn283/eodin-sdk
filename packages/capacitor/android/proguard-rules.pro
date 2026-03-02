@@ -1,0 +1,3 @@
+-keep class app.eodin.deeplink.** { *; }
+-keep class app.eodin.analytics.** { *; }
+-keep class app.eodin.capacitor.** { *; }
