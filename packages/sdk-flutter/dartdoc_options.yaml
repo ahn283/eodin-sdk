@@ -1,0 +1,9 @@
+# dartdoc configuration for Eodin SDK Flutter
+# Run: dart doc .
+# Output: doc/api/
+
+dartdoc:
+  showUndocumentedCategories: false
+  ignore:
+    - 'unresolved-doc-reference'
+    - 'broken-link'

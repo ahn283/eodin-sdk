@@ -6,3 +6,6 @@ xcuserdata/
 DerivedData/
 .swiftpm/
 *.xcworkspace
+
+# Generated DocC archives (Phase 1.8 — `xcodebuild docbuild`)
+*.doccarchive

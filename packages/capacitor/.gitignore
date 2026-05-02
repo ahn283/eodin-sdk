@@ -1,0 +1,15 @@
+# Capacitor 패키지가 standalone 으로 clone (예: SDK 사용자가 직접 `git
+# clone https://github.com/ahn283/eodin-sdk.git && cd packages/capacitor &&
+# npm install`) 되는 경우를 위한 self-contained .gitignore. monorepo 의
+# root .gitignore 와 일부 중복은 의도적.
+
+node_modules/
+dist/
+
+# Generated TypeDoc API docs (Phase 1.8 — `npm run docs`)
+docs/api/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/

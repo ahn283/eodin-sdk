@@ -2,6 +2,9 @@ plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("maven-publish")
+    // Phase 1.8 — Dokka API docs. Run: ./gradlew :sdk-android:dokkaHtml
+    // Output: build/dokka/html/
+    id("org.jetbrains.dokka") version "1.9.20"
 }
 
 android {
@@ -48,6 +51,25 @@ dependencies {
 
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+}
+
+// Phase 1.8 — Dokka API docs configuration
+tasks.withType<org.jetbrains.dokka.gradle.DokkaTask>().configureEach {
+    dokkaSourceSets.configureEach {
+        moduleName.set("Eodin SDK Android")
+        // 내부 helper (app.eodin.internal.*) 는 docs 에서 제외
+        perPackageOption {
+            matchingRegex.set("app\\.eodin\\.internal.*")
+            suppress.set(true)
+        }
+        // BuildConfig stub (AGP 가 namespace 별로 자동 생성하는 build-time class) 제외.
+        // L1 (코드리뷰): namespace 가 v2 에서 `app.eodin` 으로 변경됐고 향후 추가
+        // 가능성도 있어 광범위 match 패턴 사용.
+        perPackageOption {
+            matchingRegex.set(".*\\.BuildConfig")
+            suppress.set(true)
+        }
+    }
 }
 
 publishing {

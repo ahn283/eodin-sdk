@@ -19,5 +19,8 @@ pubspec.lock
 .pub-cache/
 .pub/
 
+# Generated API docs (Phase 1.8 — `dart doc .`)
+doc/api/
+
 # macOS
 .DS_Store
