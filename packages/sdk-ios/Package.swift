@@ -29,7 +29,7 @@ let package = Package(
     targets: [
         .target(
             name: "EodinDeeplink",
-            dependencies: [],
+            dependencies: ["EodinAnalytics"],
             path: "Sources/EodinDeeplink"
         ),
         .target(
@@ -41,6 +41,11 @@ let package = Package(
             name: "EodinDeeplinkTests",
             dependencies: ["EodinDeeplink"],
             path: "Tests/EodinDeeplinkTests"
+        ),
+        .testTarget(
+            name: "EodinAnalyticsTests",
+            dependencies: ["EodinAnalytics"],
+            path: "Tests/EodinAnalyticsTests"
         ),
     ]
 )

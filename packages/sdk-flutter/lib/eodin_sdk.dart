@@ -64,4 +64,5 @@ export 'src/exceptions/eodin_exception.dart';
 
 // Analytics exports
 export 'src/analytics/eodin_analytics.dart';
+export 'src/analytics/eodin_event.dart';
 export 'src/models/event.dart';

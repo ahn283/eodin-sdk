@@ -110,3 +110,35 @@ describe('Analytics type definitions', () => {
     expect(Object.keys(plugin)).toHaveLength(11);
   });
 });
+
+describe('EodinAnalytics public wrapper (positional API)', () => {
+  it('overrides only track and identify; other methods flow through prototype chain', () => {
+    // Lazy import so the test does not bootstrap the Capacitor bridge prematurely.
+    const { EodinAnalytics } = require('../index');
+
+    // The wrapper itself owns *only* the positional overrides. This protects
+    // against H1 regression: any future plugin method (e.g. setEnabled,
+    // requestDataDeletion) becomes available via the prototype chain instead
+    // of requiring a manual forwarder update here.
+    expect(Object.keys(EodinAnalytics).sort()).toEqual(['identify', 'track']);
+
+    // Existing v1 surface still resolves through the prototype.
+    const inheritedMethods = [
+      'configure',
+      'clearIdentity',
+      'setAttribution',
+      'flush',
+      'startSession',
+      'endSession',
+      'requestTrackingAuthorization',
+      'getATTStatus',
+      'getStatus',
+    ];
+    for (const method of inheritedMethods) {
+      expect(typeof EodinAnalytics[method]).toBe('function');
+    }
+    // And the overridden ones are present too.
+    expect(typeof EodinAnalytics.track).toBe('function');
+    expect(typeof EodinAnalytics.identify).toBe('function');
+  });
+});

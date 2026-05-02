@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/event.dart';
+import 'eodin_event.dart';
 import 'event_queue.dart';
 
 /// Eodin Analytics SDK for Flutter
@@ -168,6 +169,26 @@ class EodinAnalytics {
       // Legacy direct send mode
       await _sendEventDirect(event);
     }
+  }
+
+  /// Track an analytics event using the recommended [EodinEvent] enum.
+  ///
+  /// Equivalent to [track] but provides IDE autocomplete and aligns with the
+  /// unified event reference. For app-specific domain events not in the enum,
+  /// use [track] with a free-form string.
+  ///
+  /// ```dart
+  /// EodinAnalytics.trackEvent(EodinEvent.appOpen);
+  /// EodinAnalytics.trackEvent(
+  ///   EodinEvent.subscribeStart,
+  ///   properties: {'plan': 'monthly', 'price': 9900, 'currency': 'KRW'},
+  /// );
+  /// ```
+  static Future<void> trackEvent(
+    EodinEvent event, {
+    Map<String, dynamic>? properties,
+  }) {
+    return track(event.eventName, properties: properties);
   }
 
   /// Send event directly without queue (legacy mode)

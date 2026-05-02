@@ -9,5 +9,6 @@
 library eodin_sdk_analytics;
 
 export 'src/analytics/eodin_analytics.dart';
+export 'src/analytics/eodin_event.dart';
 export 'src/models/event.dart';
 export 'src/exceptions/eodin_exception.dart';

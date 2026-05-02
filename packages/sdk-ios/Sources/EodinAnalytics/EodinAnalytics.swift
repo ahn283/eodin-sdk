@@ -113,6 +113,19 @@ public final class EodinAnalytics {
 
     // MARK: - Public Methods
 
+    /// Track an analytics event using the recommended `EodinEvent` enum.
+    ///
+    /// Equivalent to the string-based `track(_:properties:)` but provides
+    /// compile-time autocomplete and aligns with the unified event reference.
+    /// For app-specific domain events not in the enum, use the string variant.
+    ///
+    /// - Parameters:
+    ///   - event: The recommended event
+    ///   - properties: Optional custom properties
+    public static func track(_ event: EodinEvent, properties: [String: Any]? = nil) {
+        track(event.rawValue, properties: properties)
+    }
+
     /// Track an analytics event
     /// - Parameters:
     ///   - eventName: The name of the event

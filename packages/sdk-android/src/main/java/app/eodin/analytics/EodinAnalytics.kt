@@ -161,6 +161,22 @@ object EodinAnalytics {
     fun getAttribution(): Attribution? = attribution
 
     /**
+     * Track an analytics event using the recommended [EodinEvent] enum.
+     *
+     * Equivalent to the string-based [track] but provides IDE autocomplete
+     * and aligns with the unified event reference. For app-specific domain
+     * events not in the enum, use the string variant.
+     *
+     * @param event The recommended event
+     * @param properties Optional custom properties
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun track(event: EodinEvent, properties: Map<String, Any>? = null) {
+        track(event.eventName, properties)
+    }
+
+    /**
      * Track an analytics event.
      *
      * @param eventName The name of the event
