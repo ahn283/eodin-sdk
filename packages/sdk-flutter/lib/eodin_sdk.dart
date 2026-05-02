@@ -1,27 +1,27 @@
-/// Eodin SDK for Flutter
+/// Eodin SDK for Flutter (full bundle)
 ///
 /// Complete SDK for Eodin services including:
-/// - Deferred Deep Linking
 /// - Analytics Event Tracking
+/// - Deferred Deep Linking
 ///
 /// ## Quick Start
 ///
 /// ```dart
-/// import 'package:eodin_deeplink/eodin_sdk.dart';
+/// import 'package:eodin_sdk/eodin_sdk.dart';
 ///
 /// void main() async {
 ///   WidgetsFlutterBinding.ensureInitialized();
 ///
 ///   // Configure Analytics
 ///   await EodinAnalytics.configure(
-///     apiEndpoint: 'https://link.eodin.app/api/v1',
+///     apiEndpoint: 'https://api.eodin.app/api/v1',
 ///     apiKey: 'your-api-key',
 ///     appId: 'your-app-id',
 ///   );
 ///
 ///   // Configure Deep Link
 ///   EodinDeeplink.configure(
-///     apiEndpoint: 'https://link.eodin.app/api/v1',
+///     apiEndpoint: 'https://api.eodin.app/api/v1',
 ///     service: 'your-service-id',
 ///   );
 ///
@@ -29,14 +29,17 @@
 /// }
 /// ```
 ///
+/// ## Module-only imports (tree-shaking friendly)
+///
+/// ```dart
+/// import 'package:eodin_sdk/analytics.dart';   // Analytics only
+/// import 'package:eodin_sdk/deeplink.dart';    // Deeplink only
+/// ```
+///
 /// ## Analytics
 ///
 /// ```dart
-/// // Track events
 /// EodinAnalytics.track('app_open');
-/// EodinAnalytics.track('button_clicked', properties: {'button': 'subscribe'});
-///
-/// // Identify user
 /// EodinAnalytics.identify('user-123');
 /// ```
 ///
@@ -49,7 +52,7 @@
 ///     Navigator.pushNamed(context, '/${params.path}');
 ///   }
 /// } on NoParamsFoundException {
-///   // Normal - user installed without clicking a link
+///   // Normal — user installed without clicking a link
 /// }
 /// ```
 library eodin_sdk;

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:eodin_deeplink/eodin_deeplink.dart';
+import 'package:eodin_sdk/deeplink.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';

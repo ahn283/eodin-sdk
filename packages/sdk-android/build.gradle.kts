@@ -5,7 +5,10 @@ plugins {
 }
 
 android {
-    namespace = "app.eodin.deeplink"
+    // v2.0.0: namespace was 'app.eodin.deeplink' but the module also contains
+    // analytics (app.eodin.analytics.*). Promoted to 'app.eodin' to match
+    // the unified SDK scope.
+    namespace = "app.eodin"
     compileSdk = 34
 
     defaultConfig {
@@ -50,9 +53,12 @@ dependencies {
 publishing {
     publications {
         register<MavenPublication>("release") {
+            // v2.0.0: artifactId was 'deeplink-sdk' but module is unified SDK.
+            // Renamed to 'eodin-sdk' to match Flutter (eodin_sdk) and
+            // npm (@eodin/capacitor) naming conventions.
             groupId = "app.eodin"
-            artifactId = "deeplink-sdk"
-            version = "1.0.0"
+            artifactId = "eodin-sdk"
+            version = "2.0.0-beta.1"
 
             afterEvaluate {
                 from(components["release"])

@@ -10,5 +10,5 @@
 -keep class app.eodin.deeplink.EodinException { *; }
 -keep class app.eodin.deeplink.EodinException$* { *; }
 
-# Keep BuildConfig
--keep class app.eodin.deeplink.BuildConfig { *; }
+# Keep BuildConfig (v2.0.0: namespace promoted to app.eodin)
+-keep class app.eodin.BuildConfig { *; }

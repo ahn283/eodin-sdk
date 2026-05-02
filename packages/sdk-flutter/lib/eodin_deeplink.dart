@@ -1,36 +1,29 @@
-/// Eodin Deferred Deep Link SDK for Flutter
+/// **DEPRECATED v1 entry** — use `import 'package:eodin_sdk/eodin_sdk.dart'`
+/// (full bundle) or `import 'package:eodin_sdk/deeplink.dart'` (deeplink only).
 ///
-/// Enable deferred deep linking to direct users to specific content
-/// after app installation.
+/// This entry is kept as a compatibility shim for the rename
+/// `eodin_deeplink` → `eodin_sdk` (v2.0.0). It will be removed in v3.0.
 ///
-/// ## Usage
-///
+/// Migration:
 /// ```dart
+/// // v1
 /// import 'package:eodin_deeplink/eodin_deeplink.dart';
-///
-/// void main() async {
-///   WidgetsFlutterBinding.ensureInitialized();
-///
-///   // Configure SDK
-///   EodinDeeplink.configure(
-///     apiEndpoint: 'https://link.eodin.app/api/v1',
-///     service: 'your-service-id',
-///   );
-///
-///   runApp(MyApp());
-/// }
+/// // v2 (recommended)
+/// import 'package:eodin_sdk/eodin_sdk.dart';
+/// // or module-only
+/// import 'package:eodin_sdk/deeplink.dart';
+/// import 'package:eodin_sdk/analytics.dart';
 /// ```
-///
-/// For full SDK functionality including Analytics, use:
-/// ```dart
-/// import 'package:eodin_deeplink/eodin_sdk.dart';
-/// ```
+@Deprecated('Use package:eodin_sdk/eodin_sdk.dart (full bundle), '
+    'package:eodin_sdk/deeplink.dart (deeplink-only), or '
+    'package:eodin_sdk/analytics.dart (analytics-only). '
+    'This entry will be removed in v3.0.')
 library eodin_deeplink;
 
 export 'src/eodin_deeplink.dart';
 export 'src/models/deferred_params_result.dart';
 export 'src/exceptions/eodin_exception.dart';
 
-// Also export analytics for convenience
+// Also export analytics for convenience (v1 compatibility)
 export 'src/analytics/eodin_analytics.dart';
 export 'src/models/event.dart';
