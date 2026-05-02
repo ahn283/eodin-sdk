@@ -50,7 +50,7 @@ void main() async {
 
   // Configure SDK
   EodinDeeplink.configure(
-    apiEndpoint: 'https://link.eodin.app/api/v1',
+    apiEndpoint: 'https://api.eodin.app/api/v1',
     service: 'your-service-id',  // e.g., 'shopping'
   );
 
@@ -146,5 +146,5 @@ In debug mode, the SDK logs to the console. Look for `[EodinDeeplink]` messages.
 
 ## Support
 
-- Admin Dashboard: https://link.eodin.app/admin
-- GitHub Issues: https://github.com/ahn283/eodin/issues
+- Admin Dashboard: https://admin.eodin.app
+- GitHub Issues: https://github.com/ahn283/eodin-sdk/issues

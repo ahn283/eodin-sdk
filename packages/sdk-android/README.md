@@ -45,7 +45,7 @@ class MyApplication : Application() {
 
         EodinDeeplink.configure(
             context = this,
-            apiEndpoint = "https://link.eodin.app/api/v1",
+            apiEndpoint = "https://api.eodin.app/api/v1",
             service = "your-service-id"  // e.g., "shopping", "food", "video"
         )
     }
@@ -248,7 +248,7 @@ The SDK is fully compatible with Java:
 
 ```java
 // Configure
-EodinDeeplink.configure(context, "https://link.eodin.app/api/v1", "shopping");
+EodinDeeplink.configure(context, "https://api.eodin.app/api/v1", "shopping");
 
 // Check params
 EodinDeeplink.checkDeferredParams(result -> {

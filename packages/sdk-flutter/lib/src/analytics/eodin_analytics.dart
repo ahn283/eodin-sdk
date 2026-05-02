@@ -19,7 +19,7 @@ import 'event_queue.dart';
 /// ```dart
 /// // Configure SDK
 /// EodinAnalytics.configure(
-///   apiEndpoint: 'https://link.eodin.app/api/v1',
+///   apiEndpoint: 'https://api.eodin.app/api/v1',
 ///   apiKey: 'your-api-key',
 ///   appId: 'fridgify',
 /// );
@@ -60,7 +60,7 @@ class EodinAnalytics {
   ///
   /// Call this once at app startup.
   ///
-  /// [apiEndpoint] - The Eodin API endpoint (e.g., 'https://link.eodin.app/api/v1')
+  /// [apiEndpoint] - The Eodin API endpoint (e.g., 'https://api.eodin.app/api/v1')
   /// [apiKey] - Your API key for the service
   /// [appId] - Your app ID (e.g., 'fridgify', 'arden')
   /// [debug] - Enable debug logging

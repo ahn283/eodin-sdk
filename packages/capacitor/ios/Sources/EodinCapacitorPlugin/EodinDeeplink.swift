@@ -27,7 +27,7 @@ public final class EodinDeeplink {
 
     /// Configure the SDK with API endpoint and service identifier
     /// - Parameters:
-    ///   - apiEndpoint: The base URL of the Eodin API (e.g., "https://link.eodin.app/api/v1")
+    ///   - apiEndpoint: The base URL of the Eodin API (e.g., "https://api.eodin.app/api/v1")
     ///   - service: The service identifier registered with Eodin (e.g., "shopping")
     public static func configure(apiEndpoint: String, service: String) {
         shared.apiEndpoint = apiEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))

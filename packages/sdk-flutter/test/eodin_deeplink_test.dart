@@ -19,7 +19,7 @@ void main() {
 
     test('isReady returns true after configure', () {
       EodinDeeplink.configure(
-        apiEndpoint: 'https://link.eodin.app/api/v1',
+        apiEndpoint: 'https://api.eodin.app/api/v1',
         service: 'test-service',
       );
 
@@ -28,7 +28,7 @@ void main() {
 
     test('configure removes trailing slash from endpoint', () {
       EodinDeeplink.configure(
-        apiEndpoint: 'https://link.eodin.app/api/v1/',
+        apiEndpoint: 'https://api.eodin.app/api/v1/',
         service: 'test-service',
       );
 
@@ -62,7 +62,7 @@ void main() {
       });
 
       EodinDeeplink.configure(
-        apiEndpoint: 'https://link.eodin.app/api/v1',
+        apiEndpoint: 'https://api.eodin.app/api/v1',
         service: 'test-service',
         httpClient: mockClient,
       );
@@ -85,7 +85,7 @@ void main() {
       });
 
       EodinDeeplink.configure(
-        apiEndpoint: 'https://link.eodin.app/api/v1',
+        apiEndpoint: 'https://api.eodin.app/api/v1',
         service: 'test-service',
         httpClient: mockClient,
       );
@@ -106,7 +106,7 @@ void main() {
       });
 
       EodinDeeplink.configure(
-        apiEndpoint: 'https://link.eodin.app/api/v1',
+        apiEndpoint: 'https://api.eodin.app/api/v1',
         service: 'test-service',
         httpClient: mockClient,
       );
@@ -126,7 +126,7 @@ void main() {
       });
 
       EodinDeeplink.configure(
-        apiEndpoint: 'https://link.eodin.app/api/v1',
+        apiEndpoint: 'https://api.eodin.app/api/v1',
         service: 'test-service',
         httpClient: mockClient,
       );

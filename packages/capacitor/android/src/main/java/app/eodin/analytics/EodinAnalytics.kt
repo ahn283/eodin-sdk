@@ -20,7 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * // Configure in Application.onCreate()
  * EodinAnalytics.configure(
  *     context = this,
- *     apiEndpoint = "https://link.eodin.app/api/v1",
+ *     apiEndpoint = "https://api.eodin.app/api/v1",
  *     apiKey = "your-api-key",
  *     appId = "your-app-id"
  * )

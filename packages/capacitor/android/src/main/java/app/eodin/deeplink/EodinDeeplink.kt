@@ -22,7 +22,7 @@ import org.json.JSONObject
  * // Configure in Application.onCreate()
  * EodinDeeplink.configure(
  *     context = this,
- *     apiEndpoint = "https://link.eodin.app/api/v1",
+ *     apiEndpoint = "https://api.eodin.app/api/v1",
  *     service = "your-service-id"
  * )
  *
@@ -45,7 +45,7 @@ object EodinDeeplink {
      * Configure the SDK with API endpoint and service identifier.
      *
      * @param context Application context (required for device fingerprinting)
-     * @param apiEndpoint The base URL of the Eodin API (e.g., "https://link.eodin.app/api/v1")
+     * @param apiEndpoint The base URL of the Eodin API (e.g., "https://api.eodin.app/api/v1")
      * @param service The service identifier registered with Eodin (e.g., "shopping")
      */
     @JvmStatic

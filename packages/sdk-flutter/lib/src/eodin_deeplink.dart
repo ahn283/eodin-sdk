@@ -21,7 +21,7 @@ import 'models/event.dart';
 /// ```dart
 /// // Configure in main.dart
 /// EodinDeeplink.configure(
-///   apiEndpoint: 'https://link.eodin.app/api/v1',
+///   apiEndpoint: 'https://api.eodin.app/api/v1',
 ///   service: 'shopping',
 /// );
 ///
@@ -51,7 +51,7 @@ class EodinDeeplink {
   ///
   /// Call this once at app startup, before using [checkDeferredParams].
   ///
-  /// [apiEndpoint] - The Eodin API endpoint (e.g., 'https://link.eodin.app/api/v1')
+  /// [apiEndpoint] - The Eodin API endpoint (e.g., 'https://api.eodin.app/api/v1')
   /// [service] - Your service ID registered in Eodin Admin Dashboard
   /// [httpClient] - Optional HTTP client for testing
   static void configure({

@@ -38,7 +38,7 @@ import EodinDeeplink
 func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
 
     EodinDeeplink.configure(
-        apiEndpoint: "https://link.eodin.app/api/v1",
+        apiEndpoint: "https://api.eodin.app/api/v1",
         service: "your-service-id"  // e.g., "shopping", "food", "video"
     )
 
@@ -50,7 +50,7 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
 struct MyApp: App {
     init() {
         EodinDeeplink.configure(
-            apiEndpoint: "https://link.eodin.app/api/v1",
+            apiEndpoint: "https://api.eodin.app/api/v1",
             service: "your-service-id"
         )
     }
@@ -110,7 +110,7 @@ Task {
 ```swift
 /// Configure the SDK
 /// - Parameters:
-///   - apiEndpoint: Base URL of Eodin API (e.g., "https://link.eodin.app/api/v1")
+///   - apiEndpoint: Base URL of Eodin API (e.g., "https://api.eodin.app/api/v1")
 ///   - service: Your service identifier registered with Eodin
 static func configure(apiEndpoint: String, service: String)
 
