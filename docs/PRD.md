@@ -1,554 +1,275 @@
-# PRD: Eodin Unified Identity & SDK v2 Revamp
+# PRD: Eodin SDK v2 정비 (SDK 화)
 
-**작성일:** 2026-05-02
+**작성일:** 2026-05-02 (재정리: 2026-05-02 — Auth/Identity 트랙 분리)
 **작성자:** Woojin Ahn
-**상태:** Draft (검토 단계)
+**상태:** Draft → 일부 phase 진행 중 (Phase 1.1 / 1.3 / 1.6 / 1.9 완료)
+**디렉토리 명**: `unified-id-and-sdk-v2/` 는 이전 통합 ID + SDK 합본 시점의 명칭 그대로 유지. 현 프로젝트 범위는 SDK 화 한정.
 
 ---
 
 ## 1. 배경 및 문제 정의
 
-Eodin 산하에는 6개 앱이 운영 중이며, 각자 별개의 회원 체계와 Firebase 프로젝트를 가지고 있다. eodin SDK 는 5개 앱에 통합되어 사용자 행동 로그·딥링크·attribution 데이터를 같은 백엔드(`api.eodin.app`)로 전송하지만, **앱별 user_id 가 서로 분리되어 있어 cross-app 분석·SSO·통합 멤버십이 불가능**하다.
+Eodin 산하 5개 앱 (fridgify / plori / tempy / arden / kidstopia) 이 eodin SDK 를 통해 사용자 행동 로그·딥링크·attribution 을 같은 백엔드(`api.eodin.app`)로 보낸다. 그러나 **SDK 자체가 5개 앱에서 5가지 다른 통합 방식 (git submodule, git ref:main, local path, vendor tgz, Capacitor) 으로 사용**되고 있고, 시맨틱 버저닝과 CHANGELOG 가 없어 breaking change 시 5개 앱이 동시에 영향을 받을 위험이 있다.
 
-또한 eodin SDK 자체가 5개 앱에서 5가지 다른 통합 방식(git submodule, git ref:main, local path, vendor tgz, capacitor)으로 사용되고 있고, 시맨틱 버저닝과 CHANGELOG 가 없어 breaking change 시 5개 앱이 동시에 영향을 받을 위험이 있다.
+또한 SDK 가 deeplink + analytics 를 같이 export 하는데도 패키지명은 `eodin_deeplink` 였고, Capacitor `web.ts` 는 모든 메서드가 `unavailable()` throw 라 PWA (kidstopia `semag.app`) 사용자의 분석 데이터가 0건이었다.
 
-이 두 문제(SDK 정비 + 회원 통합)를 묶어서 한 번의 v2 마이너 마이그레이션으로 해결한다.
-
----
-
-## 2. Eodin 산하 6개 앱 현황 (2026-05-02)
-
-| 앱 | 위치 | DB | Firebase Project | Auth | eodin SDK 통합 |
-|---|---|---|---|---|---|
-| **fridgify** | `~/Github/fridgify` | Postgres + Prisma | `fridgify-3c6bf` | Firebase + 자체 OAuth(google/apple)/PW | git submodule (`libs/eodin`) |
-| **plori** | `~/Github/plori` | Postgres + Prisma | `plori-eb1b1` | Firebase | `eodin_deeplink` Flutter pkg (git ref:main) |
-| **tempy** | `~/Github/tempy` | Supabase Postgres | `tempy-9f095` | Firebase + Supabase RLS (JWT custom claim) | `eodin_deeplink` Flutter pkg (git ref:main) |
-| **arden** | `~/arden` (Github 외부) | Firestore only | `arden-cbe4f` | Firebase | `eodin_deeplink` (local path: `../Github/eodin/...`) |
-| **kidstopia (=play-cafe)** | `~/Github/kidstopia` | Firestore only | `kids-cafe-tycoon` | Firebase | `@eodin/capacitor` (vendor tgz) |
-| **linkgo** | `~/Github/linkgo` | Postgres + Prisma | ❌ 없음 | **NextAuth.js (Google OAuth)** | ❌ 미통합 (Footer 회사링크만) |
-
-### 도메인 다양성
-- **DB**: Postgres+Prisma 4개 (fridgify, linkgo, plori, tempy=Supabase) + Firestore 2개 (arden, kidstopia)
-- **회원 모델 무게**:
-  - 가장 무거움: fridgify (credits, RevenueCat 구독, role/status, social stats, preferences/stats JSON)
-  - 잘 정리됨: linkgo (약관·개인정보·마케팅·쿠키 동의 컬럼 풀 셋팅, soft delete) — **참고 가치 큼**
-  - 가장 가벼움: plori (UserProfile: id + displayName + language + subscription)
-  - 특수: tempy (firebase_uid 별도 컬럼, family/children 단위 도메인)
-  - NoSQL: arden, kidstopia (Firestore `/users/{uid}` 패턴)
-
-### 통합 우호 조건 (확인됨)
-- **6개 앱 모두 같은 사업자 명의** → 약관/개인정보처리방침 통합 법적 가능
-- **eodin SDK 가 사용자 행동 로그까지 보냄** → cross-app 분석 백엔드는 이미 통합 상태, user_id 통일만 남음
-- **`fridgify/libs/eodin/apps/api/prisma/schema.prisma`** 에 이미 `Service / DeferredParam / ClickEvent / LegalDocument / AnalyticsEvent / DeviceAttribution` 등 인프라 모델 존재 (User 만 부재)
+**이 PRD 는 SDK 정비 (v1 → v2) 만 다룬다.** 통합 회원 ID / EodinAuth 모듈 / 통합 Firebase / 통합 약관 / linkgo NextAuth 전환 등은 본 PRD 의 초안에 포함되어 있었으나 **별도 트랙으로 분리**되었다 — 본 프로젝트의 범위 밖.
 
 ---
 
-## 3. 검토 과정 및 결정
+## 2. Eodin 산하 5개 앱 SDK 통합 현황 (2026-05-02)
 
-### 3.1 검토한 옵션
-
-| 옵션 | 내용 | 평가 |
+| 앱 | 위치 | eodin SDK 통합 |
 |---|---|---|
-| **A. 풀 통합** | 단일 user table + 단일 Firebase 프로젝트, 5개 앱 모두 마이그 | ❌ wide table 위험, blast radius 큼, 마이그 비용 2-3개월 |
-| **B. 부분 통합 (3-tier)** | 약관만 통합 + 신규 앱부터 Identity 사용 + 기존 앱 그대로 | △ 안전하지만 기존 자산(SDK 통합/같은 사업자)을 활용 못 함 |
-| **C. 단계 분리 통합 (선택)** | Identity Hub + Per-App Profile, SDK 채널을 통한 점진 마이그 | ✅ 데이터 모델 차이 보존, 점진 가능, 롤백 용이 |
+| **fridgify** | `~/Github/fridgify` | git submodule (`libs/eodin-sdk`, path-based pubspec) |
+| **plori** | `~/Github/plori` | `eodin_deeplink` Flutter pkg (git ref:main) |
+| **tempy** | `~/Github/tempy` | `eodin_deeplink` Flutter pkg (git ref:main) |
+| **arden** | `~/arden` (Github 외부) | `eodin_deeplink` Flutter pkg (git ref:main, Phase 0 회귀 수정) |
+| **kidstopia** (prod appId=`semag-kidscafe`) | `~/Github/kidstopia` | `@eodin/capacitor` (vendor tgz) — Capacitor 4 plugin |
 
-### 3.2 선택: 옵션 C — "Identity Hub + Per-App Profile" 분리형 통합
+### 호출 패턴 매트릭스 (Phase 0.1 audit 결과)
+- 5개 앱 모두 EodinAnalytics + EodinDeeplink **static 패턴 + single init** (multi-init use case 0건)
+- `EodinAnalytics.track('event_name', properties: {...})` 자유 string 호출이 표준
+- 호출부 수: fridgify 16 / plori 11 / tempy 71 (wrapper 안에 갇힘) / arden 16 / kidstopia 11
 
-**핵심 원칙:**
-- 중앙 Eodin Identity DB 는 **identity 만** (작게 유지)
-- 각 앱 DB 의 user/profile 테이블은 그대로 유지하고 `eodin_user_id` FK 컬럼만 추가
-- 앱별 도메인 데이터(credits, family, scripts, links 등)는 그 자리에 둠
-- Firebase 통합 / linkgo NextAuth 전환은 **별도 페이즈로 분리**해서 위험 격리
+---
 
-### 3.3 SDK 정비와 묶는 이유
-- 어차피 SDK 가 5가지 통합 방식으로 제각각이라 정비 필요
-- Identity 모듈(`EodinAuth`)을 SDK 에 추가하면 5개 앱이 다음 SDK 릴리스로 자연스럽게 통합 ID 채택
-- breaking change 가 많은 v2 를 한 번에 묶어서 5개 앱이 1주씩 마이그하면 끝
+## 3. 검토한 옵션 / 선택
+
+| 옵션 | 평가 |
+|---|---|
+| **A. 그대로 두기** | ❌ 5가지 통합 방식 유지 — 신규 앱 채택 비용 / 마이그 비용 매번 5배 |
+| **B. v2.0 한 번 마이그 (선택)** | ✅ breaking change 묶어서 한 번에 정리 — 5개 앱이 v2 채택 후 Phase 5 마이그 1회 |
+
+선택: **옵션 B** — `v2.0.0-beta.1` 한 번의 메이저 릴리스로 13개 정비 항목 (이번 PRD §6 — Auth 제외 12개) 일괄 처리.
 
 ---
 
 ## 4. 목표 (Goals)
 
-1. **통합 ID 인프라 구축**: 6개 앱이 단일 `eodin_user_id` 로 식별되어 cross-app 분석·SSO·통합 멤버십 가능
-2. **SDK v2 정비**: 패키지 구조·버저닝·배포·테스트·문서를 일관되게 정리
-3. **약관/개인정보처리방침 통합**: 2-tier 구조 (공통 계정 약관 + 서비스별 이용약관)
-4. **신규 앱 출시 비용 절감**: 회원/약관/탈퇴/프로필 인프라를 SDK 채택만으로 즉시 사용 가능
-5. **마이그레이션 안전성**: 단계 분리 + dual-write + 롤백 가능한 구조
+1. **SDK v2 정비**: 패키지 구조·버저닝·배포·테스트·문서를 5채널 (Flutter / iOS / Android / Capacitor / Web) 일관되게 정리
+2. **5개 앱 마이그 안전성**: dual-support / 가이드 / 회귀 매트릭스로 v1 → v2 이행 시 회귀 0
+3. **신규 앱 채택 비용 절감**: 통합 가이드 (`integration-guide.md`) 만으로 새 앱이 5채널 어느 곳에서도 동일 API surface 채택
+4. **Capacitor PWA 분석 정상화**: kidstopia `semag.app` 라이브 사용자 analytics 가 v1 의 silent throw 회로에서 정상 수집으로 전환
 
 ---
 
-## 5. 비목표 (Non-Goals)
+## 5. 비목표 (Non-Goals — 별도 트랙으로 분리)
 
-- 통합 멤버십/구독 상품 출시 (인프라만 구축, 비즈니스 결정은 별도)
-- 6개 앱의 도메인 데이터(credits/family/scripts 등) 통합 — 앱별 DB 그대로
-- Firestore 두 앱(arden/kidstopia)의 데이터 모델 변경 — sync 만
-- 기존 Firebase 프로젝트 즉시 폐기 — 통합 프로젝트는 신설, 기존 프로젝트는 유지하면서 점진 사용자 import
+다음은 본 PRD 의 초안에는 포함되어 있었으나 **본 프로젝트 범위 밖** 으로 분리됐다:
+
+| 항목 | 분리 트랙 | 노트 |
+|---|---|---|
+| 통합 회원 ID (Eodin Identity API) | Phase 2-4 별도 프로젝트 | DB 스키마 / Identity API / 통합 Firebase / 사용자 import |
+| `EodinAuth` 모듈 (5채널) | 별도 프로젝트 | signIn / linkApp / leaveApp / deleteAccount 등 |
+| 통합 약관 / 개인정보처리방침 | 별도 프로젝트 | LegalService Tier 1 / 2 — 단 Service catalog (Phase 0.9) 인프라는 SDK 화 시점에 이미 완료 |
+| linkgo NextAuth → Firebase 전환 | 별도 프로젝트 | linkgo Web SDK 채택 포함 |
+| 통합 멤버십 / 구독 상품 | 비즈니스 결정, 인프라/제품 모두 별도 |
+| Phase 0.5 (5개 Firebase 프로젝트 uid 충돌 검증) | 별도 프로젝트 | Auth 마이그 시점에 필요 |
+| kidstopia RevenueCat anonymous → identified 결정 | 별도 프로젝트 | `Purchases.logIn(eodinUserId)` 가능 시점 = Identity API 출시 후 |
+| linkgo 도메인 (`linkgo.dev` vs `linkgo.kr`) prod 일치 | 별도 프로젝트 | linkgo 가 SDK 채택 시점에 점검 |
+| 6개 앱 도메인 데이터 통합 (credits / family / scripts) | 영구 비목표 | 앱별 DB 그대로 |
+| Firestore (arden / kidstopia) → Postgres 마이그 | 비목표 (Phase 8 회고 시점 재검토) |
 
 ---
 
-## 6. SDK v2 정비 — 13개 항목
+## 6. SDK v2 정비 — 12개 항목 (5개 플랫폼)
 
-진단으로 도출된 13개 항목을 v2.0.0 한 번에 처리한다.
+진단으로 도출된 13개 항목 중 **M5 (EodinAuth 모듈 신설)** 은 Auth 트랙으로 분리. 본 PRD 는 12개를 다룬다.
 
-### 6.1 Must (5개)
+**SDK 플랫폼**: Flutter / iOS / Android / Capacitor (Phase 1.9 web 분기 동작화 완료) / Web (Auth 의존이라 본 트랙에서는 신설 보류).
 
-| # | 항목 | 정비 내용 |
-|---|---|---|
-| M1 | **Flutter 패키지명 + 모놀리식 단일 패키지 채택** | 단일 패키지 `eodin_sdk` 로 통일 (iOS Package.swift 의 `EodinSDK / EodinAuth / EodinAnalytics / EodinDeeplink` 라이브러리 product 패턴 차용). 모듈별 import 진입점 분리(`import 'package:eodin_sdk/auth.dart'`). Android `app.eodin:sdk`, Capacitor `@eodin/capacitor` 단일 패키지 유지 |
-| M2 | **API endpoint 단일화** | `api.eodin.app/api/v1` 로 통일. `link.eodin.app` 은 마케팅 링크 전용. SDK 코드/문서/예제 모두 일관 |
-| M3 | **시맨틱 버저닝 + CHANGELOG** | 4개 SDK 모두 `1.0.0` 고정 → semver 도입. 패키지별 `CHANGELOG.md` 신설. breaking 시 major bump 강제 |
-| M4 | **레지스트리 정식 배포 (별도 공개 저장소)** | 새 Public 저장소 **`ahn283/eodin-sdk`** 신설 → pub.dev (Flutter), SwiftPM tag (iOS), Maven Central (Android), npm (Capacitor) 4채널 동시 배포. 기존 `ahn283/eodin` 은 Private 유지 (apps/api, ai, admin 비공개 필수). SDK 들이 monorepo internal dep 없어서 분리 깔끔 |
-| M5 | **Identity 모듈 신설 (`EodinAuth`)** | signIn / signUp / signInWithGoogle / signInWithApple / signOut / acceptTerms / withdrawConsent / deleteAccount. 자동으로 `EodinAnalytics.identify()` 호출 |
+### 6.1 Must (4개)
 
-### 6.2 Should (4개)
+| # | 항목 | 정비 내용 | 상태 |
+|---|---|---|---|
+| M1 | **5채널 SDK 모놀리식 단일 패키지 통일** | iOS Package.swift modular product 패턴 차용. Flutter `eodin_sdk` (모듈별 import: `analytics.dart` / `deeplink.dart`), iOS `EodinSDK`, Android `app.eodin:eodin-sdk`, Capacitor `@eodin/capacitor`. Web 은 본 트랙 보류 | ✅ Phase 1.1 |
+| M2 | **API endpoint 단일화** | SDK 의 호출 endpoint 를 `api.eodin.app/api/v1` 로 통일. `link.eodin.app` 은 사용자 진입 URL 전용 (마케팅 `/{service}/{id}`). SDK 코드/문서/예제 일관 | ✅ Phase 1.3 |
+| M3 | **시맨틱 버저닝 + CHANGELOG** | 4채널 모두 `1.0.0` 고정 → semver 도입. 패키지별 `CHANGELOG.md` 신설. breaking 시 major bump 강제 | 🚧 Phase 1.10 |
+| M4 | **레지스트리 정식 배포 (4채널)** | Public 저장소 `ahn283/eodin-sdk` (Phase 0.5 신설) → pub.dev / SwiftPM tag / Maven Central / npm `@eodin/capacitor` 의 4채널 동시 배포. 단일 git tag `sdk-v2.0.0` push 시 GitHub Actions 가 4개 publish | ⏸️ Phase 1.2 / 0.5.6 (사용자 토큰 대기) |
+| ~~M5~~ | ~~Identity 모듈 (`EodinAuth`) 신설~~ | **별도 트랙 분리** | — |
 
-| # | 항목 | 정비 내용 |
-|---|---|---|
-| S6 | **4개 SDK 모두 modular 통일** | 현재 iOS 만 `EodinDeeplink` / `EodinAnalytics` 분리. 나머지 3개도 동일 구조. v2 부터 `EodinAuth` 추가하면 3개 모듈 |
-| S7 | **static → 인스턴스 패턴** | `EodinAnalytics.track(...)` → `Eodin.shared.analytics.track(...)` 같은 인스턴스 기반. 멀티 init 가능. (breaking change, v2 에서만) |
-| S8 | **에러 핸들링 정책 분화** | Analytics 는 fail-silent 유지(현재). **Auth 는 fail-throw 강제** — `signIn` 실패는 무조건 throw, 호출자가 인지 |
-| S9 | **이벤트 스키마 통일** | 메모리에 logging-agent 의 unified event reference 있음 — SDK 가 권장 이벤트 타입 enum 제공, 자유 string 도 허용하되 권장 이벤트는 type-safe |
+### 6.2 Should (3개)
+
+| # | 항목 | 정비 내용 | 상태 |
+|---|---|---|---|
+| S6 | **5채널 modular 통일** | iOS 만 `EodinDeeplink` / `EodinAnalytics` 분리. 나머지 3채널 (Flutter / Android / Capacitor) 도 동일 구조. v2 부터 `EodinAuth` 추가는 Auth 트랙 시점 | ✅ Phase 1.1 |
+| ~~S7~~ | ~~static → 인스턴스 패턴~~ | Phase 0.1 매트릭스 결과 multi-init use case 0건 → **보류 (gold-plating 회피)**. v3 에서 재검토 | ✅ 보류 결정 |
+| S8 | **에러 핸들링 정책 분화** | Analytics 는 fail-silent 유지 (현재). HTTPS only 강제. 개발 endpoint 도 https. (Auth fail-throw 부분은 별도 트랙) | 🚧 Phase 1.6 (S8) |
+| S9 | **이벤트 스키마 통일** | `EodinEvent` enum 39 entries (4채널) + 자유 string 병행. `unified-event-reference.md` v1.1 발행. forbidden v1 names 14건 회귀 가드 | ✅ Phase 1.6 |
 
 ### 6.3 Nice (4개)
 
-| # | 항목 | 정비 내용 |
-|---|---|---|
-| N10 | **Analytics SDK unit test 보강** | Flutter/iOS 는 deeplink 테스트만 있음. analytics 테스트 추가 (track/identify/queue/offline) |
-| N11 | **E2E 통합 테스트** | 백엔드 + SDK round-trip 테스트. Docker compose 로 api 띄우고 4개 SDK 가 호출 |
-| N12 | **API reference 자동 생성** | dartdoc (Flutter), DocC (iOS), Dokka (Android), TypeDoc (Capacitor) |
-| N13 | **Capacitor web.ts 동작화** | 현재 모두 `unavailable()` throw. kidstopia 웹 빌드 사용 여부 확인 후, 필요 시 web 구현 추가 |
-
-### 6.4 보안 정비 (Must 와 함께)
-
-- `apiKey`: 클라이언트 SDK 에 평문 저장 OK (publishable key, Analytics 용). **Auth 모듈은 별도 토큰 체계** — Firebase ID token 을 `Authorization: Bearer` 로 보내고, 서버에서 Firebase Admin SDK 로 검증
-- `userId`: SharedPreferences 평문 저장 (현재 그대로 유지, PII 등급 낮음)
-- HTTPS only 강제 (현재 OK), TLS 1.2+ 요구
-- API endpoint 화이트리스트 (개발자 임의 리다이렉트 방지)
-
----
-
-## 7. Identity 모듈 (`EodinAuth`) 설계
-
-### 7.1 API Surface
-
-```dart
-// Flutter 예시 (iOS/Android/Capacitor 도 동일 구조)
-EodinAuth.configure(
-  firebaseProject: 'eodin-id-prod',  // 통합 Firebase 프로젝트
-  identityEndpoint: 'https://api.eodin.app/api/v1/identity',
-);
-
-// 인증
-final user = await EodinAuth.signInWithEmail(email, password);
-final user = await EodinAuth.signInWithGoogle();
-final user = await EodinAuth.signInWithApple();
-final user = await EodinAuth.signUp(email, password, displayName);
-await EodinAuth.signOut();
-
-// 세션 / 사용자
-EodinAuth.currentUser  // EodinUser? — 통합 ID + 프로필
-EodinAuth.idToken      // Firebase ID token (백엔드 호출용)
-EodinAuth.onAuthStateChanged  // Stream<EodinUser?>
-
-// 약관 / 개인정보
-await EodinAuth.acceptTerms(version: '2026-05-01');
-await EodinAuth.acceptPrivacy(version: '2026-05-01');
-await EodinAuth.setMarketingOptIn(true);
-final consents = await EodinAuth.getConsents();
-
-// 계정 관리
-await EodinAuth.updateProfile(displayName: '...', avatar: '...');
-await EodinAuth.deleteAccount(reason: '...');  // soft delete + GDPR
-
-// 자동 연동
-// signIn 성공 시 EodinAnalytics.identify(eodinUserId) 자동 호출
-// signOut 시 EodinAnalytics.clearIdentity() 자동 호출
-```
-
-### 7.2 EodinUser 모델
-
-```typescript
-interface EodinUser {
-  id: string;              // eodin_user_id (UUID)
-  firebaseUid: string;
-  email: string;
-  emailVerified: boolean;
-  displayName?: string;
-  avatarUrl?: string;
-  locale: string;
-  createdAt: ISODateTime;
-  // 앱별 가입 정보
-  apps: Array<{
-    appId: 'fridgify' | 'plori' | 'tempy' | 'arden' | 'kidstopia' | 'linkgo';
-    appUserId: string;     // 해당 앱 내부 PK
-    joinedAt: ISODateTime;
-    lastActiveAt: ISODateTime;
-  }>;
-}
-```
-
----
-
-## 8. 백엔드 — Eodin Identity API
-
-### 8.1 신규 DB 스키마 (`eodin/apps/api` 추가)
-
-```prisma
-model EodinUser {
-  id              String   @id @default(uuid())
-  firebaseUid     String   @unique @map("firebase_uid")
-  primaryEmail    String   @unique @map("primary_email")
-  displayName     String?  @map("display_name")
-  avatarUrl       String?  @map("avatar_url")
-  locale          String   @default("ko")
-  status          UserStatus @default(active)
-  deletedAt       DateTime? @map("deleted_at")
-  deleteReason    String?   @map("delete_reason")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  emails          EodinUserEmail[]
-  apps            EodinUserApp[]
-  oauthLinks      EodinOauthLink[]
-  consents        EodinConsent[]
-
-  @@map("eodin_users")
-}
-
-model EodinUserEmail {
-  // 보조 이메일 / 이전 이메일 매핑 (마이그 dedup 용)
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  email     String
-  verified  Boolean  @default(false)
-  source    String   // 'fridgify-import' | 'linkgo-import' | 'manual' | ...
-  createdAt DateTime @default(now()) @map("created_at")
-
-  user      EodinUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, email])
-  @@index([email])
-  @@map("eodin_user_emails")
-}
-
-model EodinUserApp {
-  // 어느 앱에 가입했는지 + 각 앱 PK 매핑
-  id           String   @id @default(uuid())
-  userId       String   @map("user_id")
-  appId        AppId
-  appUserId    String   @map("app_user_id")
-  joinedAt     DateTime @default(now()) @map("joined_at")
-  lastActiveAt DateTime @default(now()) @map("last_active_at")
-  status       String   @default("active")
-
-  user         EodinUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([appId, appUserId])
-  @@unique([userId, appId])
-  @@map("eodin_user_apps")
-}
-
-model EodinOauthLink {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  provider    String   // 'google' | 'apple' | 'kakao' | ...
-  providerId  String   @map("provider_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  user        EodinUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerId])
-  @@map("eodin_oauth_links")
-}
-
-model EodinConsent {
-  id                 String   @id @default(uuid())
-  userId             String   @map("user_id")
-  termsVersion       String?  @map("terms_version")
-  termsAcceptedAt    DateTime? @map("terms_accepted_at")
-  privacyVersion     String?  @map("privacy_version")
-  privacyAcceptedAt  DateTime? @map("privacy_accepted_at")
-  marketingOptIn     Boolean  @default(false) @map("marketing_opt_in")
-  marketingOptInAt   DateTime? @map("marketing_opt_in_at")
-  perServiceConsents Json?    @map("per_service_consents")  // {"fridgify": {...}}
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  user               EodinUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("eodin_consents")
-}
-
-enum AppId {
-  fridgify
-  plori
-  tempy
-  arden
-  kidstopia
-  linkgo
-}
-
-enum UserStatus {
-  active
-  suspended
-  deleted
-}
-```
-
-### 8.2 신규 API 엔드포인트
-
-```
-# Identity
-POST /api/v1/identity/register             # 신규 가입 (Firebase ID token 검증 후 EodinUser 생성)
-POST /api/v1/identity/link-app             # 기존 EodinUser 에 앱 가입 추가
-GET  /api/v1/identity/me                   # 현재 사용자 정보 (Bearer Firebase ID token)
-PATCH /api/v1/identity/me                  # 프로필 수정
-DELETE /api/v1/identity/me                 # 계정 탈퇴 (soft delete)
-
-# Consents
-GET  /api/v1/identity/me/consents          # 동의 현황
-POST /api/v1/identity/me/consents          # 약관/개인정보 동의 기록
-GET  /api/v1/legal/terms/latest?app={id}   # 최신 약관 버전
-GET  /api/v1/legal/privacy/latest          # 최신 개인정보처리방침
-
-# Migration helpers (admin only)
-POST /api/v1/admin/identity/import         # CSV/JSON bulk import (마이그용)
-POST /api/v1/admin/identity/merge          # 두 EodinUser 병합 (수동 dedup 용)
-```
-
-### 8.3 인증 방식
-
-- 클라이언트 → 백엔드: `Authorization: Bearer <Firebase ID token>`
-- 백엔드: Firebase Admin SDK 로 ID token 검증 → `firebase_uid` 추출 → `EodinUser` 조회
-- API key (`X-API-Key`) 는 Analytics/Deeplink 같은 publishable 엔드포인트에만 유지
-
----
-
-## 9. 통합 Firebase 프로젝트
-
-### 9.1 신설
-
-- 신규 Firebase 프로젝트: **`eodin-id-prod`** (스테이징은 `eodin-id-stg`)
-- Authentication 활성화: Email/Password, Google, Apple
-- 통합 멤버십 / 푸시 / Crashlytics 등 추후 사용
-
-### 9.2 기존 5개 프로젝트와의 관계
-
-| 단계 | 기존 프로젝트 | 신규 통합 프로젝트 |
-|---|---|---|
-| **Phase 4 (dual-write)** | 사용자 인증·푸시 그대로 | 신규 가입자만 통합 프로젝트로 |
-| **Phase 5 (점진 마이그)** | 사용자 import 후 read-only | active 사용자 |
-| **Phase 6 후** | deprecated, 푸시 토큰 마이그 완료 후 폐기 검토 | 단일 source of truth |
-
-### 9.3 사용자 import 방식
-
-- Firebase Admin SDK 의 `importUsers()` 사용 → uid 보존 가능 (앱별 RLS 정책 영향 없음)
-- 비밀번호: Firebase 의 password hash 호환 (scrypt) — fridgify, plori, tempy, arden, kidstopia 는 모두 Firebase Auth 라 무손실 마이그
-- **linkgo 만 예외** — NextAuth.js 의 password hash 와 비호환 → 마이그 후 재설정 강제 또는 OAuth-only
-
----
-
-## 10. 통합 약관/개인정보처리방침
-
-### 10.1 2-tier 구조
-
-| Tier | 내용 | 대상 |
-|---|---|---|
-| **Tier 1: 공통 계정 약관 + 통합 개인정보처리방침** | 통합 계정 운영, 인증, 본인 확인, 공통 처리 항목 | Eodin ID 단위 |
-| **Tier 2: 서비스별 이용약관** | 각 서비스의 기능, 콘텐츠, 결제, 환불 | 6개 앱 각자 |
-
-업계 표준 (구글, 네이버, 카카오) 패턴.
-
-### 10.2 개인정보처리방침에 명시할 항목
-
-서비스별 처리 항목을 표 형태로 분리 명시 (수집 항목·이용 목적·보유 기간이 서비스마다 다름):
-
-| 서비스 | 수집 항목 | 이용 목적 | 보유 기간 |
+| # | 항목 | 정비 내용 | 상태 |
 |---|---|---|---|
-| fridgify | 이메일, 식자재 사진, 레시피 데이터 | 레시피 추천, 구독 관리 | 회원 탈퇴 시까지 |
-| plori | 이메일, 위치, 청취 이력 | 장소 추천, 도슨트 제공 | ... |
-| tempy | 이메일, 가족 정보, 자녀 데이터 | 육아 지원 | ... |
-| arden | 이메일, 음성 사용량 | AI 음성 서비스 | ... |
-| kidstopia | 이메일, 친구 관계, 게임 진행 | 게임 운영 | ... |
-| linkgo | 이메일, 링크 데이터 | 링크 서비스 | ... |
+| N10 | **Analytics SDK unit test 보강** | 4채널 SDK unit test 확대 (track / identify / queue / offline / GDPR) | 🚧 Phase 1.7 |
+| N11 | **E2E 통합 테스트** | Docker compose 로 api 띄우고 4채널 SDK round-trip 테스트 | ⏸️ Phase 1.7 후 |
+| N12 | **API reference 자동 생성** | dartdoc / DocC / Dokka / TypeDoc | 🚧 Phase 1.8 |
+| N13 → **Must** | **Capacitor web.ts 동작화** (Phase 0.2 결과로 격상) | kidstopia `semag.app` 라이브 → web 구현 필수. EodinAnalytics web (localStorage queue + fetch + auto-flush + sendBeacon) / EodinDeeplink no-op / ATT no-op | ✅ Phase 1.9 |
 
-### 10.3 기존 회원 재동의
+### 6.4 보안 정비 (S8 와 함께)
 
-- 통합 시점에 모든 사용자에게 **재동의 요구** (약관·개인정보처리방침 변경)
-- **14일 사전 고지** (이메일 + 앱 푸시)
-- 미동의자: 일정 기간(예: 30일) 유예 후 서비스 이용 제한 / 자동 탈퇴 처리
-- 마케팅 동의는 별도 opt-in (기존 동의 그대로 이전)
-
----
-
-## 11. 5개 앱 마이그레이션 상세
-
-### 11.1 SDK v2 채택
-
-각 앱이 SDK v2 로 업데이트 + `EodinAuth` 모듈 사용 시작.
-
-| 앱 | 변경 내용 | 예상 공수 |
-|---|---|---|
-| fridgify | submodule 제거 → pub.dev/Maven/SwiftPM 의존성으로. 자체 OAuth/PW → `EodinAuth`. credits 시스템은 그대로 | 2주 |
-| plori | git ref:main → pub.dev. UserProfile.id 가 firebase uid 였으므로 `eodin_user_id` 컬럼 추가 + 백필 | 1주 |
-| tempy | git ref:main → pub.dev. RLS 정책의 firebase_uid → eodin_user_id 변경 (마이그 SQL) | 1.5주 |
-| arden | local path → pub.dev. Firestore `/users/{uid}` 에 `eodin_user_id` 필드 추가 | 1주 |
-| kidstopia | vendor tgz → npm. Firestore 동일 처리. Capacitor 통합 SDK 업데이트 | 1주 |
-
-### 11.2 dual-write 단계
-
-각 앱이 SDK v2 채택 후, 일정 기간 동안:
-- 신규 사용자: `EodinAuth.signUp` → 통합 Firebase + EodinUser 생성 + 앱 user table 생성
-- 기존 사용자: 다음 로그인 시 통합 Firebase 로 import + `eodin_user_id` 백필
-
-### 11.3 각 앱 DB 마이그
-
-```sql
--- Postgres (fridgify, plori, tempy, linkgo)
-ALTER TABLE users ADD COLUMN eodin_user_id UUID;
-CREATE UNIQUE INDEX idx_users_eodin_user_id ON users(eodin_user_id);
--- 백필은 마이그 스크립트로 (Firebase uid → eodin_user_id 매핑)
-```
-
-```typescript
-// Firestore (arden, kidstopia)
-// /users/{uid} 문서에 eodin_user_id 필드 추가 (Cloud Function batch)
-```
+- `apiKey`: 클라이언트 SDK 에 평문 저장 OK (publishable key, Analytics 용)
+- `userId`: SharedPreferences / localStorage 평문 저장 (현재 그대로 유지 — PII 등급 낮음)
+- **HTTPS only 강제, TLS 1.2+ 요구** (Phase 1.6 S8) — `configure()` 가 endpoint scheme 을 검사. 다음 loopback 주소만 dev 예외:
+  - `localhost` / `127.0.0.1`: 모든 빌드에서 허용 (mixed-content / iOS ATS / Android cleartextTrafficPermitted 가 release 에서도 보호)
+  - `10.0.2.2` (Android emulator → host): **debug build 만**. release 에서 reject (Flutter `kReleaseMode` / iOS `#if DEBUG` / Android `BuildConfig.DEBUG`). Web (TS) 에서는 항상 reject (의미 없음)
+- **검증 실패 시 에러 정책 (cross-platform 일관)**:
+  - Flutter: `ArgumentError` throw (Dart 표준)
+  - iOS: `EndpointValidator.validate(...)` throws → `EodinAnalytics.configure` 가 `preconditionFailure` 로 변환 (Swift idiom — release 빌드에서도 abort 하여 misconfiguration 즉시 발견)
+  - Android: `IllegalArgumentException` throw (Kotlin `require` / `throw`)
+  - Capacitor (web): `Error` throw (TS 표준)
+- **Host 화이트리스트는 본 SDK 화 PRD 범위 밖** — `https://attacker.example.com` 같은 임의 host 도 scheme 만 https 면 통과 (현행). PRD 초안의 "API endpoint 화이트리스트" 표현은 host whitelist 가 아닌 **scheme whitelist (HTTPS 강제)** 로 해석. 향후 host 화이트리스트 도입은 `open-issues.md` §4.6 ticket — 호스트 앱이 빌드 시점에 endpoint 를 hardcode 하는 통제가 우선이고, SDK 단의 startup validation 은 scheme 단계까지가 SDK v2 범위
+- (Auth 모듈의 Firebase ID token / Custom Claims / X-App-Id 헤더는 별도 Auth 트랙)
 
 ---
 
-## 12. linkgo NextAuth → Firebase Auth 전환
+## 7. SDK v2 호환성 / Breaking Change 매트릭스
 
-### 12.1 가장 큰 위험
-
-- linkgo 는 NextAuth.js 사용 — password hash 가 Firebase 와 비호환
-- 비밀번호 재설정 강제 시 **이탈률 20~30% 추정**
-
-### 12.2 마이그 옵션
-
-| 옵션 | 내용 | 위험도 |
-|---|---|---|
-| (a) 모든 사용자 비밀번호 재설정 강제 | 다음 로그인 시 reset 메일 | 이탈률 높음 |
-| (b) Google OAuth 만 즉시 마이그, 이메일 가입자는 reset | OAuth 사용자(다수)는 무손실 | 중간 |
-| (c) NextAuth 비밀번호 검증 로직을 백엔드 어댑터로 유지하면서 Firebase 와 dual-auth | 점진적, 그러나 복잡 | 낮음 (구현 복잡) |
-
-**권장**: **(b)** — linkgo 는 이미 Google OAuth 위주로 사용된다고 가정하면 영향 최소화. 사용자 비율 확인 후 최종 결정.
-
-### 12.3 시점
-
-- **Phase 6 (마지막)** — 다른 5개 앱이 안정화된 후 진행
-- 사전에 linkgo 사용자 통계 분석: Google OAuth vs 이메일 가입 비율
-- 14일 사전 고지 + reset 메일 + 푸시
-
----
-
-## 13. 보안 / 개인정보 / 컴플라이언스
-
-### 13.1 인증
-
-- Firebase ID token 으로 서버 인증 (TTL 1시간, refresh token 으로 갱신)
-- 서버는 Firebase Admin SDK 로 매 요청 검증
-- API key 는 Analytics/Deeplink 의 publishable 용도로만 유지
-
-### 13.2 데이터 보호
-
-- HTTPS only (TLS 1.2+)
-- 비밀번호: Firebase Auth 가 처리 (scrypt)
-- 이메일/displayName: 평문 저장 OK (PII 등급 낮음, 운영상 필요)
-- 탈퇴 사용자: soft delete (90일 후 hard delete, GDPR 준수)
-
-### 13.3 GDPR / 개인정보보호법
-
-- 사용자 데이터 export API (`GET /identity/me/export`)
-- 계정 삭제 API (soft → hard delete, 30~90일 grace period)
-- 마케팅 동의는 명시적 opt-in
-- ATT (iOS) 상태 SDK 가 처리 (현재 sdk-ios 의 ATTManager 활용)
-
-### 13.4 감사
-
-- 동의 이벤트 (terms accept, marketing opt-in, withdraw) → AnalyticsEvent 로 기록 + EodinConsent 테이블에 timestamp
-- 관리자 작업 (merge, import, force delete) → AdminAction 테이블에 audit log
-
----
-
-## 14. 위험 / 롤백 전략
-
-### 14.1 주요 위험
-
-| 위험 | 영향 | 완화 |
-|---|---|---|
-| **Firebase 통합 프로젝트 import 실패** | 5개 앱 사용자 인증 다운 | Phase 별로 1개 앱씩 마이그, dual-write 기간 4주 이상 |
-| **eodin_user_id 백필 누락** | 일부 사용자가 cross-app 분석에서 빠짐 | 각 앱 마이그 후 검증 쿼리 + 누락 사용자 알림 |
-| **linkgo 사용자 이탈** | linkgo 활성 사용자 감소 | (b) 옵션 채택, 14일 사전 고지, reset 메일 + 푸시 다중 채널 |
-| **약관 재동의 미동의자** | 서비스 이용 제한 사용자 발생 | 30일 유예 + 다중 채널 알림 + 1:1 문의 대응 |
-| **SDK v2 breaking change 누락** | 5개 앱 동시 빌드 깨짐 | E2E 테스트 + staged rollout (개발용 v2.0.0-beta → 안정화 후 정식) |
-
-### 14.2 롤백 전략
-
-- 각 페이즈별 feature flag 로 차단 가능 (예: `FEATURE_EODIN_AUTH=false` 시 기존 인증 사용)
-- 통합 Firebase 프로젝트는 **신설**이라 기존 프로젝트는 무손실 (롤백 = 신규 사용자만 다시 기존 프로젝트로)
-- DB 변경은 additive (`eodin_user_id` 컬럼 추가) → drop 으로 즉시 롤백
-- linkgo 마이그는 dual-auth 기간 유지 → 문제 시 NextAuth 로 폴백
-
----
-
-## 15. 측정 지표 (Success Metrics)
-
-### 15.1 인프라 지표
-
-- ✅ 6개 앱 모두 SDK v2 채택 완료
-- ✅ 통합 Firebase 프로젝트 사용자 수 = 6개 앱 unique 사용자 합 (dedup 후)
-- ✅ `eodin_user_id` 백필률 ≥ 98% (active 사용자 기준)
-
-### 15.2 통합 가치 지표
-
-- **Cross-app 사용률**: 2개 이상 앱을 사용하는 사용자 비율 (baseline 측정 → 6개월 후)
-- **신규 앱 출시 시 회원 인프라 작업 시간**: 기존 1주 → 0일 (SDK 채택만)
-- **약관 재동의율**: ≥ 90% (14일 고지 + 30일 유예 후)
-
-### 15.3 안정성 지표
-
-- 인증 API SLA ≥ 99.9%
-- 마이그 후 인증 실패율 < 0.1%
-- linkgo 마이그 시 활성 사용자 retention ≥ 80% (이탈률 ≤ 20%)
-
----
-
-## 16. 페이즈 / 일정
-
-| Phase | 내용 | 예상 기간 | 의존성 |
+| 변경 | Breaking? | 호스트 앱 영향 | 해소 방안 |
 |---|---|---|---|
-| **Phase 0** | 사전 조사 (Capacitor web 사용 여부, 앱별 SDK 사용 패턴 매트릭스, linkgo OAuth/이메일 가입 비율, 이벤트 스키마 정합성) | 1주 | - |
-| **Phase 0.5** | **SDK 저장소 분리** (`ahn283/eodin-sdk` Public 신설 + git filter-repo 로 packages/sdk-* extraction + 기존 monorepo 에 submodule 로 재참조 + fridgify submodule URL 변경) | 2~3일 | Phase 0 |
-| **Phase 1** | SDK v2 정비 (13개 항목 + EodinAuth 모듈) | 4주 | Phase 0.5 |
-| **Phase 2** | 백엔드 — Eodin Identity API + 약관 API | 3주 | Phase 1 (병렬 가능) |
-| **Phase 3** | 통합 Firebase 프로젝트 신설 + 스테이징 환경 | 1주 | - |
-| **Phase 4** | 통합 약관/개인정보처리방침 작성 + 법무 검토 + 배포 | 3주 | - (병렬) |
-| **Phase 5** | 5개 앱 SDK v2 마이그 (fridgify → plori → tempy → arden → kidstopia 순) | 6주 | Phase 1, 2, 3 |
-| **Phase 6** | Firebase 사용자 import + dual-write 기간 (4주) | 4주 | Phase 5 |
-| **Phase 7** | linkgo NextAuth → Firebase 마이그 | 3주 | Phase 6 |
-| **Phase 8** | 약관 재동의 캠페인 + 미동의자 처리 | 6주 (사전 고지 14일 + 유예 30일 + 정리 2주) | Phase 4 완료 |
+| Flutter 패키지명 `eodin_deeplink` → `eodin_sdk` | ✅ Breaking | pubspec dep 이름 1줄 + import sed | `migration-guide.md` §4.1 |
+| Android namespace `app.eodin.deeplink` → `app.eodin` | X | 5개 앱 모두 native Android 직접 사용 X | 영향 0 |
+| Android artifactId `deeplink-sdk` → `eodin-sdk` | X | 동일하게 영향 0 | 영향 0 |
+| API endpoint `link.eodin.app/api/v1` → `api.eodin.app/api/v1` | △ | 5개 앱 모두 명시 configure | 호출부 1줄 갱신 |
+| `EodinEvent` enum 추가 | X (additive) | 자유 string 보존 | 점진 마이그 |
+| Capacitor `track({eventName, properties})` → `track(eventName, properties?)` | ✅ Breaking | kidstopia 호출부 1곳 | `migration-guide.md` §5.2 |
+| Capacitor `identify({userId})` → `identify(userId)` | ✅ Breaking | kidstopia 호출부 1곳 | 동일 |
+| Capacitor web.ts throw → 동작 | △ (의도) | kidstopia PWA 분석 첫 수집 | baseline reset 안내 |
 
-**총 예상 기간:** 약 5~6개월 (페이즈 병렬 고려)
-
-상세 작업은 `CHECKLIST.md` 참조.
-
----
-
-## 17. 오픈 이슈
-
-- [ ] Capacitor SDK 의 web 빌드를 kidstopia 가 실제로 사용하는지 확인 → N13 진행 여부 결정
-- [ ] linkgo 사용자의 Google OAuth vs 이메일 가입 비율 확인 → 12.2 마이그 옵션 결정
-- [ ] 통합 멤버십/구독 상품을 향후 출시할 계획이 있는지 → 9.1 Firebase 프로젝트 설정 영향 (구독 상품 통합 여부)
-- [ ] fridgify 의 RevenueCat 연동을 통합 프로젝트로 이전 시 entitlement 매핑 → 별도 PRD 필요할 수 있음
-- [ ] kidstopia 의 Firestore 데이터를 Postgres 로 마이그할지, sync 만 할지 → 도메인 데이터 통합 여부 (현재 비목표지만 향후 결정)
+**총 호스트 앱 작업량**:
+- Flutter 4개 (plori / arden / fridgify / tempy): pubspec 1줄 + import sed (평균 3-4 곳) + endpoint 1줄
+- fridgify 추가: submodule 제거 + git ref 전환
+- Capacitor 1개 (kidstopia): vendor tgz 교체 + positional API 2 곳 + web 첫 수집 baseline 안내
 
 ---
 
-## 부록 A: 참고 자료
+## 8. 위험 / 롤백 전략
 
-- 기존 PRD: `/Users/ahnwoojin/Github/eodin/docs/PRD.md`
-- 기존 CHECKLIST: `/Users/ahnwoojin/Github/eodin/docs/CHECKLIST.md`
-- linkgo User 모델 (약관 동의 컬럼 풀 셋팅 — 참고 가치): `~/Github/linkgo/prisma/schema.prisma`
-- fridgify User 모델 (가장 무거운 케이스): `~/Github/fridgify/backend/prisma/schema.prisma`
-- 메모리: `/Users/ahnwoojin/.claude/projects/-Users-ahnwoojin-Github-eodin/memory/project_eodin_unified_id_review.md`
+### 8.1 회귀 위험 영역
+
+| 영역 | 회귀 가능성 | 완화 |
+|---|---|---|
+| Flutter 4개 import 마이그 | 낮음 | sed 일괄 + `flutter analyze` + 테스트 + smoke test |
+| Capacitor positional API | 중간 | grep + 변경 + staging 검증 1주 |
+| Web 첫 수집 baseline 점프 | 의도된 변화 | 분석 팀에 baseline reset 안내 |
+| RevenueCat alias (Auth 트랙) | — | 본 PRD 범위 밖 |
+
+### 8.2 Rollback
+
+`migration-guide.md` §7 — Flutter 는 ref pin 을 v1 stable commit (`ed009f4`) 로 되돌리고 import sed 역방향. Capacitor 는 v1 vendor tgz 백업 복귀. 마이그 시작 전 v1 안정 commit / tgz 백업 권장.
+
+### 8.3 SDK origin push 정책
+
+- 로컬 v2 commit 은 origin push 보류
+- `v2.0.0-beta.1` git tag 만 origin 에 push (main 은 v1 그대로) → 호스트 앱 ref pin 으로 안전
+- 모든 호스트 앱이 tag pin 으로 옮긴 후 main 도 v2 advance 가능
+
+---
+
+## 9. 측정 지표 (Success Metrics)
+
+| 영역 | 지표 | 목표 |
+|---|---|---|
+| 마이그 안전성 | v2 채택 후 회귀 incident 수 | 0 |
+| 분석 정상화 | kidstopia `semag.app` web 사용자 이벤트 수신율 | v2 채택 후 1주 내 안정 |
+| 마이그 시간 | 앱당 마이그 + staging 검증 | 1주 |
+| 채택 완료 | 5개 앱 모두 v2 채택 | 6주 (Phase 5 일정) |
+| 신규 앱 onboarding | 가이드 (`integration-guide.md`) 만으로 신규 앱 통합 가능 | ✅ |
+
+---
+
+## 10. Phase / 일정
+
+본 PRD 의 phase 는 SDK 정비 + 5개 앱 마이그만 다룬다.
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| 0 (사전 조사) | SDK 사용 매트릭스 / Capacitor web 라이브 / 이벤트 스키마 audit / Service catalog 확장 (LegalService 인프라 포함) | ✅ 완료 |
+| 0.5 (SDK 저장소 분리) | `ahn283/eodin-sdk` Public 저장소 신설 + 4채널 코드 추출 | ✅ 완료 |
+| 1.1 (패키지 구조) | 5채널 모놀리식 + 모듈별 import + S7 보류 결정 | ✅ |
+| 1.3 (API endpoint 통일) | `api.eodin.app/api/v1` | ✅ |
+| 1.6 (이벤트 스키마 S9) | EodinEvent enum 4채널 + reference v1.1 | ✅ |
+| 1.9 (Capacitor web 처리) | `web.ts` 동작화 + HIGH 3 finding 처리 | ✅ |
+| **1.6 (보안 S8)** | Analytics fail-silent 강제 + HTTPS only | 🚧 다음 |
+| **1.7 (테스트 보강)** | 4채널 unit test 확대 | 🚧 |
+| **1.8 (문서)** | dartdoc / DocC / Dokka / TypeDoc | 🚧 |
+| **1.10 (`v2.0.0-beta.1` 릴리스)** | git tag + origin push | 🚧 |
+| 1.2 / 0.5.6 (publish CI-CD) | pub.dev / Maven Central / npm / SwiftPM 자동 publish | ⏸️ 사용자 토큰 대기 |
+| 1.5 (dual-support) | `eodin_deeplink: ^1.99.0` 호환 alias publish | ⏸️ 보류 (마이그 가이드로 대체) |
+| 5 (5개 앱 마이그) | plori → arden → fridgify (submodule 제거) → tempy → kidstopia | 🚧 가이드 완료, 실제 마이그 대기 |
+
+**제외된 phase**:
+- Phase 1.4 (EodinAuth 모듈) — Auth 트랙
+- Phase 2-4 (Identity API / 통합 Firebase / 백엔드 연결) — Auth 트랙
+- Phase 6-8 (점진 출시 / linkgo 연동 / 회고) — Auth 트랙
+
+---
+
+## 11. 오픈 이슈 (SDK 화 범위)
+
+`open-issues.md` 의 SDK 관련 항목만 본 PRD 와 정합:
+
+| ID | 항목 | 상태 |
+|---|---|---|
+| §4.4 | `subscribe_renew` 5개 앱 채택 추적 (Phase 5 마이그 시) | 🟡 Phase 5 |
+| §4.5 | Capacitor / iOS / Android GDPR surface 보강 (`setEnabled` / `requestDataDeletion`) — Flutter 만 구현됨 | 🟡 Phase 1.7 또는 1.9 후속 |
+| logging M2 | `DeviceSchema.os` enum 에 `'web'` 추가 (백엔드 schema 변경 → web.ts 가 `device.os = 'web'` 첨부) | 🟢 별도 phase |
+
+**Auth 트랙으로 분리된 항목** (본 PRD 에서 제외):
+- Identity API SPOF 정책 (fail-open vs fail-closed)
+- 통합 Firebase OAuth client ID 정책
+- linkgo 도메인 prod 일치 (Service catalog webUrl)
+- kidstopia RevenueCat anonymous → identified
+- 14세 미만 사용자 처리 후속 PRD
+- kidstopia Firestore → Postgres 재검토 시점
+
+---
+
+## 12. 변경 이력
+
+| 일자 | 변경 |
+|---|---|
+| 2026-05-02 (재정리) | **본 PRD 의 범위를 SDK 화 한정으로 축소.** 통합 ID / EodinAuth / Identity API / 통합 Firebase / 통합 약관 / linkgo NextAuth 전환 / Phase 0.5 firebase uid 충돌 검증 / kidstopia RevenueCat 결정 / linkgo 도메인 결정은 모두 별도 Auth 트랙으로 분리. PRD §7 (EodinAuth 설계) / §8 (Identity API DB+REST) / §9 (통합 Firebase) / §10 (통합 약관) / §11 (6개 앱 마이그 — Auth 의존 부분) / §12 (linkgo NextAuth 전환) / §13 (Auth 보안) 모두 제거 |
+| 2026-05-02 (Phase 1.9 완료) | Capacitor web.ts 동작화 + HIGH 3 finding 처리 + 가이드 2개 (integration / migration) 작성 |
+| 2026-05-02 (Phase 1.6 완료) | EodinEvent enum 4채널 + reference v1.1 발행 + forbidden v1 names 14건 회귀 가드 |
+| 2026-05-02 (Phase 1.3 완료) | API endpoint `api.eodin.app/api/v1` 통일 |
+| 2026-05-02 (Phase 1.1 완료) | 5채널 패키지 구조 정비 + S7 보류 결정 |
+| 2026-05-02 (Phase 0.9 완료) | Service catalog 확장 (`serviceType` / `webUrl` / `legalEntity`) + LegalService 인프라 |
+| 2026-05-02 (Phase 0.5 완료) | `ahn283/eodin-sdk` Public 저장소 신설 + 4채널 코드 추출 |
+| 2026-05-02 (Phase 0 완료) | SDK 사용 매트릭스 / Capacitor web 라이브 확인 / 이벤트 스키마 audit / RevenueCat 영향 검토 |
+| 2026-05-02 (초안) | 13개 SDK 정비 항목 + 통합 ID + 통합 약관 + 6개 앱 마이그 합본 PRD 작성 |
+
+---
+
+## 13. 참고 자료
+
+- `CHECKLIST.md` — 본 PRD 의 phase 별 작업 항목
+- `integration-guide.md` — 신규 호스트 앱 채택
+- `migration-guide.md` — 기존 5개 앱 v1 → v2 마이그 (canary 순서 / Rollback / FAQ)
+- `event-schema-audit.md` — 5개 앱 이벤트 17건 명명 충돌 매핑
+- `phase-1.1-package-structure.md` — 5채널 패키지 구조 결정
+- `revenuecat-impact.md` — RevenueCat 영향 검토 (Auth 트랙으로 분리됐으나 SDK 마이그 영향 없음을 본 PRD 에서도 인용)
+- `sdk-distribution-checks.md` — Phase 0.5.7 / 0.5.8 (Capacitor SPM submodule path / submodule 인증 모델 검증)
+- `sdk-usage-matrix.md` — Phase 0.1 5개 앱 SDK 호출 매트릭스
+- `web-sdk-targets.md` — Phase 0.10 Web SDK 채택 후보 (linkgo 는 Auth 트랙 의존)
+- `reviews/phase-0.9-code-review.md` / `phase-1.3-code-review.md` / `phase-1.6-code-review.md` / `phase-1.6-logging-audit.md` / `phase-1.9-code-review.md` / `phase-1.9-logging-audit.md` — phase 별 senior-code-reviewer + logging-agent 결과
+- `open-issues.md` — phase 진행 중 식별된 후속 ticket 모음 (Auth 트랙 항목 포함)
+- `docs/logging/unified-event-reference.md` v1.1 — 표준 이벤트 reference (Phase 1.6 산출)
+- SDK 저장소: <https://github.com/ahn283/eodin-sdk>
+
+---
+
+## 부록 A: Auth 트랙 (별도 프로젝트)
+
+본 PRD 의 초안에 포함되어 있던 다음 범위는 별도 Auth 트랙으로 분리되었다. 향후 Auth 트랙 PRD 가 작성되면 본 부록은 삭제 가능.
+
+- **EodinAuth SDK 모듈 (5채널)** — signIn / linkApp / leaveApp / deleteAccount 등
+- **Eodin Identity API** — DB 스키마 (eodin_users / eodin_user_emails / eodin_user_apps / eodin_oauth_links / eodin_consents) + REST + Consent API
+- **통합 Firebase 프로젝트 신설 + 5개 Firebase 사용자 import** — Phase 0.5 (uid 충돌 검증) 의존
+- **통합 약관 / 개인정보처리방침** — Tier 1 (Eodin 통합 계정) + Tier 2 (앱별 이용약관). Service catalog 의 LegalService 인프라는 SDK 화 시점에 이미 완료 (Phase 0.9.1)
+- **linkgo NextAuth → Firebase Auth 전환** — Web SDK (`@eodin/web`) 채택 포함
+- **kidstopia RevenueCat anonymous → identified 전환**
+- **14세 미만 처리 / kidstopia Firestore→Postgres 재검토** — 후속 PRD 시점
+
+이들 항목은 SDK 가 v2 안정 채택 후 (Phase 5 완료 후) 별도 트랙으로 진행하는 것이 자연스럽다.
