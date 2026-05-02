@@ -1,5 +1,5 @@
 name: eodin_sdk
-description: Eodin SDK for Flutter — Analytics + Deferred Deep Link. Unified SDK for Eodin services (renamed from eodin_deeplink in v2.0.0).
+description: Eodin SDK for Flutter — Analytics + Deferred Deep Link (and future Auth). Renamed from eodin_deeplink in v2.0.0 — host apps update pubspec dependency name + imports during Phase 5 migration.
 version: 2.0.0-beta.1
 homepage: https://github.com/ahn283/eodin-sdk
 repository: https://github.com/ahn283/eodin-sdk

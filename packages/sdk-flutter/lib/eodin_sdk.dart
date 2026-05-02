@@ -40,6 +40,9 @@
 ///
 /// ```dart
 /// EodinAnalytics.track('app_open');
+/// // Or, type-safe:
+/// EodinAnalytics.trackEvent(EodinEvent.appOpen);
+///
 /// EodinAnalytics.identify('user-123');
 /// ```
 ///
