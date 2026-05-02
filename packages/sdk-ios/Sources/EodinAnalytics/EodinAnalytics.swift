@@ -61,6 +61,11 @@ public final class EodinAnalytics {
         debug: Bool = false,
         offlineMode: Bool = true
     ) {
+        do {
+            try EndpointValidator.validate(apiEndpoint)
+        } catch {
+            preconditionFailure("EodinAnalytics.configure: \(error.localizedDescription)")
+        }
         shared.apiEndpoint = apiEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         shared.apiKey = apiKey
         shared.appId = appId

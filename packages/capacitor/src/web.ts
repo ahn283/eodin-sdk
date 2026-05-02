@@ -30,6 +30,7 @@ export class EodinDeeplinkWeb extends WebPlugin implements EodinDeeplinkPlugin {
   private service: string | null = null;
 
   async configure(options: DeeplinkConfigureOptions): Promise<void> {
+    validateEndpoint(options.apiEndpoint);
     this.apiEndpoint = options.apiEndpoint.replace(/\/$/, '');
     this.service = options.service;
   }
@@ -69,6 +70,42 @@ const MAX_QUEUE_SIZE = 1000;
 const MAX_BATCH_SIZE = 50;
 const FETCH_TIMEOUT_MS = 10 * 1000; // 10s — flush requests should never hang the page
 const QUEUE_LOCK_NAME = 'eodin_event_queue_lock';
+// Web (browser) SDK 는 emulator-only 주소인 `10.0.2.2` 를 허용하지 않는다.
+// Web 환경에서는 의미가 없을 뿐더러 mixed-content 정책이 release 에서 막아주지
+// 않는 사설망 IP 라 reject (코드리뷰 H1).
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
+
+/**
+ * S8 보안 정책 (Phase 1.6): SDK 의 모든 API endpoint 는 HTTPS 만 허용.
+ *
+ * dev 워크플로우 유지를 위해 loopback 주소의 `http://` 는 허용:
+ * - `localhost`, `127.0.0.1`
+ *
+ * 그 외 `http://` 주소는 `Error` throw — `configure()` 시점에 즉시 발견.
+ * cross-platform 정합 (M2): 입력은 `trim()` + scheme lowercase 비교.
+ */
+export function validateEndpoint(endpoint: string, paramName = 'apiEndpoint'): void {
+  const trimmed = endpoint.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${paramName} must not be empty`);
+  }
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new Error(`${paramName} must be a valid absolute URL: ${endpoint}`);
+  }
+  if (!url.protocol || !url.hostname) {
+    throw new Error(`${paramName} must be a valid absolute URL: ${endpoint}`);
+  }
+  const scheme = url.protocol.replace(/:$/, '').toLowerCase();
+  const host = url.hostname.toLowerCase();
+  if (scheme === 'https') return;
+  if (scheme === 'http' && LOOPBACK_HOSTS.has(host)) return;
+  throw new Error(
+    `${paramName} must use HTTPS (only http://localhost / 127.0.0.1 allowed; got: ${endpoint})`,
+  );
+}
 
 interface QueuedEvent {
   event_id: string;
@@ -150,6 +187,7 @@ export class EodinAnalyticsWeb
   private lifecycleAttached = false;
 
   async configure(options: AnalyticsConfigureOptions): Promise<void> {
+    validateEndpoint(options.apiEndpoint);
     this.apiEndpoint = options.apiEndpoint.replace(/\/$/, '');
     this.apiKey = options.apiKey;
     this.appId = options.appId;

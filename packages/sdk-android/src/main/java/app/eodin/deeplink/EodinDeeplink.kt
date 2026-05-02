@@ -50,6 +50,7 @@ object EodinDeeplink {
      */
     @JvmStatic
     fun configure(context: Context, apiEndpoint: String, service: String) {
+        app.eodin.internal.EndpointValidator.validate(apiEndpoint)
         this.applicationContext = context.applicationContext
         this.apiEndpoint = apiEndpoint.trimEnd('/')
         this.serviceId = service

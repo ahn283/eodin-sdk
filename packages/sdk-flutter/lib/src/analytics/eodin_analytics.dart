@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../internal/endpoint_validator.dart';
 import '../models/event.dart';
 import 'eodin_event.dart';
 import 'event_queue.dart';
@@ -75,6 +76,7 @@ class EodinAnalytics {
     bool offlineMode = true,
     http.Client? httpClient,
   }) async {
+    validateEndpoint(apiEndpoint);
     _apiEndpoint = apiEndpoint.endsWith('/')
         ? apiEndpoint.substring(0, apiEndpoint.length - 1)
         : apiEndpoint;

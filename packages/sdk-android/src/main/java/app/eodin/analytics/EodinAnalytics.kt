@@ -92,6 +92,7 @@ object EodinAnalytics {
         debug: Boolean = false,
         offlineMode: Boolean = true
     ) {
+        app.eodin.internal.EndpointValidator.validate(apiEndpoint)
         this.applicationContext = context.applicationContext
         this.apiEndpoint = apiEndpoint.trimEnd('/')
         this.apiKey = apiKey

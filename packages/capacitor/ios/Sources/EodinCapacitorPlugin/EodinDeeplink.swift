@@ -30,6 +30,11 @@ public final class EodinDeeplink {
     ///   - apiEndpoint: The base URL of the Eodin API (e.g., "https://api.eodin.app/api/v1")
     ///   - service: The service identifier registered with Eodin (e.g., "shopping")
     public static func configure(apiEndpoint: String, service: String) {
+        do {
+            try EndpointValidator.validate(apiEndpoint)
+        } catch {
+            preconditionFailure("EodinDeeplink.configure: \(error.localizedDescription)")
+        }
         shared.apiEndpoint = apiEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         shared.serviceId = service
         shared.isConfigured = true

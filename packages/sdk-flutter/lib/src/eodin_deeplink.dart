@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'analytics/eodin_analytics.dart';
 import 'exceptions/eodin_exception.dart';
+import 'internal/endpoint_validator.dart';
 import 'models/deferred_params_result.dart';
 import 'models/event.dart';
 
@@ -59,6 +60,7 @@ class EodinDeeplink {
     required String service,
     http.Client? httpClient,
   }) {
+    validateEndpoint(apiEndpoint);
     _apiEndpoint = apiEndpoint.endsWith('/')
         ? apiEndpoint.substring(0, apiEndpoint.length - 1)
         : apiEndpoint;
