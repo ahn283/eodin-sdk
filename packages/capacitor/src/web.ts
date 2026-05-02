@@ -228,7 +228,7 @@ export class EodinAnalyticsWeb
       return;
     }
 
-    if (!this.isEnabled()) {
+    if (!this.isEnabledSync()) {
       this.log(`Tracking disabled (GDPR). Skipping ${options.eventName}`);
       return;
     }
@@ -395,6 +395,117 @@ export class EodinAnalyticsWeb
     };
   }
 
+  // -- GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5) -----------
+
+  async setEnabled(options: { enabled: boolean }): Promise<void> {
+    this.writeStorage(STORAGE_KEYS.enabled, options.enabled ? 'true' : 'false');
+    // HIGH-1/M4 (Phase 1.7 logging-audit): opt-out is immediate. Discard
+    // pending events in the queue (under the queue lock to be safe under
+    // multi-tab) so post-disable flush does not carry pre-disable events.
+    if (!options.enabled) {
+      await this.withQueueLock(() => []);
+    }
+    this.log(`Analytics ${options.enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  async isEnabled(): Promise<{ enabled: boolean }> {
+    const value = this.readStorage(STORAGE_KEYS.enabled);
+    return { enabled: value === null ? true : value === 'true' };
+  }
+
+  /**
+   * Sends DELETE `${apiEndpoint}/events/user-data` and clears local storage
+   * regardless of network outcome (right to erasure honoured locally even
+   * when the server is unreachable).
+   */
+  async requestDataDeletion(): Promise<{ success: boolean }> {
+    if (!this.isConfigured()) {
+      this.log('SDK not configured. Cannot request data deletion.', true);
+      return { success: false };
+    }
+
+    const deviceId = this.readStorage(STORAGE_KEYS.deviceId);
+    const userId = this.readStorage(STORAGE_KEYS.userId);
+
+    // L3: defensive — if device id is somehow missing, skip wire call but
+    // still honour the local-erasure contract.
+    if (deviceId === null) {
+      this.log('No device id; clearing local data only.');
+      await this.clearLocalData();
+      return { success: true };
+    }
+
+    let success = false;
+    try {
+      const body: Record<string, unknown> = {
+        device_id: deviceId,
+        app_id: this.appId,
+      };
+      if (userId !== null) body.user_id = userId;
+
+      const response = await this.fetchWithTimeout(
+        `${this.apiEndpoint}/events/user-data`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-API-Key': this.apiKey!,
+            'X-Device-ID': deviceId,
+          },
+          body: JSON.stringify(body),
+        },
+        FETCH_TIMEOUT_MS,
+      );
+      success = response.ok || response.status === 202;
+      this.log(`Data deletion request: ${success ? 'successful' : `failed (${response.status})`}`);
+    } catch (error) {
+      this.log(`Data deletion request error: ${String(error)}`, true);
+    }
+
+    // Always clear local data — right to erasure honoured locally.
+    await this.clearLocalData();
+    return { success };
+  }
+
+  /**
+   * MEDIUM-2 (Phase 1.7 logging-audit): Web Locks API protects the wipe +
+   * re-bootstrap from interleaving with concurrent track() calls in other
+   * tabs. HIGH-3: opt-out flag preserved across deletion. C2/H1: fresh
+   * device id + session immediately created so subsequent track() works.
+   */
+  private async clearLocalData(): Promise<void> {
+    const preservedEnabled = this.readStorage(STORAGE_KEYS.enabled);
+
+    const wipe = (): void => {
+      for (const key of Object.values(STORAGE_KEYS)) {
+        if (key === STORAGE_KEYS.enabled) continue; // preserve opt-out
+        this.removeStorage(key);
+      }
+      // Re-bootstrap fresh identity so post-deletion track() does not
+      // emit null device_id / silently drop on uninitialised state.
+      this.writeStorage(STORAGE_KEYS.deviceId, uuid());
+      // Restore preserved enabled flag (no-op if it was already absent).
+      if (preservedEnabled !== null) {
+        this.writeStorage(STORAGE_KEYS.enabled, preservedEnabled);
+      }
+    };
+
+    const locks = (typeof navigator !== 'undefined' &&
+      (navigator as Navigator & { locks?: LockManager }).locks) || null;
+    if (locks && typeof locks.request === 'function') {
+      await locks.request(QUEUE_LOCK_NAME, async () => {
+        wipe();
+      });
+    } else {
+      wipe();
+    }
+
+    // Restart session under the new device id (does not depend on the lock).
+    this.ensureSession();
+    this.log('Cleared all local data; re-bootstrapped fresh identity');
+  }
+
   // -- internal helpers ----------------------------------------------------
 
   private isConfigured(): boolean {
@@ -403,7 +514,8 @@ export class EodinAnalyticsWeb
     );
   }
 
-  private isEnabled(): boolean {
+  /** Synchronous internal — public async `isEnabled()` returns the same. */
+  private isEnabledSync(): boolean {
     const value = this.readStorage(STORAGE_KEYS.enabled);
     if (value === null) return true; // default-enabled
     return value === 'true';

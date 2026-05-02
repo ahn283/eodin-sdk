@@ -314,6 +314,20 @@ public final class EventQueue {
         #endif
     }
 
+    // MARK: - GDPR / Right to Erasure (Phase 1.7)
+
+    /// Clear all queued events and persisted storage as part of GDPR data
+    /// deletion. Unlike `reset()` (testing-only), this preserves the queue's
+    /// lifecycle so the next `enqueue()` from the same configured session
+    /// continues to work.
+    public func purgeForDataDeletion() {
+        queue.async { [weak self] in
+            self?.memoryQueue.removeAll()
+            UserDefaults.standard.removeObject(forKey: self?.storageKey ?? "eodin_event_queue")
+            self?.retryCount = 0
+        }
+    }
+
     // MARK: - Testing Support
 
     @available(*, deprecated, message: "For testing only")

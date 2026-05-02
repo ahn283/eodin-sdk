@@ -391,6 +391,18 @@ class EventQueue {
     }
   }
 
+  /// Clear all queued events and persisted storage as part of GDPR data
+  /// deletion (Phase 1.7). Unlike [reset] (testing-only), this preserves
+  /// the queue's lifecycle so the next [enqueue] from the same configured
+  /// session continues to work.
+  Future<void> purgeForDataDeletion() async {
+    _memoryQueue.clear();
+    if (_eventBox != null) {
+      await _eventBox!.clear();
+    }
+    _retryCount = 0;
+  }
+
   /// Reset for testing
   @visibleForTesting
   Future<void> reset() async {

@@ -26,13 +26,17 @@ const _EodinAnalyticsBridge = registerPlugin<EodinAnalyticsPlugin>(
  */
 export type EodinAnalyticsAPI = Omit<
   EodinAnalyticsPlugin,
-  'track' | 'identify'
+  'track' | 'identify' | 'setEnabled' | 'isEnabled' | 'requestDataDeletion'
 > & {
   track(
     eventName: EodinEventName | string,
     properties?: Record<string, unknown>,
   ): Promise<void>;
   identify(userId: string): Promise<void>;
+  // GDPR — positional API
+  setEnabled(enabled: boolean): Promise<void>;
+  isEnabled(): Promise<boolean>;
+  requestDataDeletion(): Promise<boolean>;
 };
 
 /**
@@ -72,6 +76,17 @@ export const EodinAnalytics: EodinAnalyticsAPI = Object.assign(
     },
     identify(userId: string): Promise<void> {
       return _EodinAnalyticsBridge.identify({ userId });
+    },
+    setEnabled(enabled: boolean): Promise<void> {
+      return _EodinAnalyticsBridge.setEnabled({ enabled });
+    },
+    async isEnabled(): Promise<boolean> {
+      const result = await _EodinAnalyticsBridge.isEnabled();
+      return result.enabled;
+    },
+    async requestDataDeletion(): Promise<boolean> {
+      const result = await _EodinAnalyticsBridge.requestDataDeletion();
+      return result.success;
     },
   },
 );

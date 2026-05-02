@@ -364,6 +364,17 @@ object EventQueue {
     }
 
     /**
+     * Clear all queued events and persisted storage as part of GDPR data
+     * deletion (Phase 1.7). Lifecycle preserved.
+     */
+    @JvmStatic
+    fun purgeForDataDeletion() {
+        memoryQueue.clear()
+        getPrefs()?.edit()?.clear()?.apply()
+        retryCount.set(0)
+    }
+
+    /**
      * Reset for testing.
      */
     @JvmStatic

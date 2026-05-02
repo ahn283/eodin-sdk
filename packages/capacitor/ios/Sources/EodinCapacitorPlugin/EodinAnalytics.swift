@@ -19,6 +19,8 @@ public final class EodinAnalytics {
     private var appId: String?
     private var isDebug = false
     private var offlineMode = true
+    /// GDPR — true 이면 이벤트 추적, false 이면 모든 track() silently drop.
+    private var isEnabled = true
 
     // MARK: - State
 
@@ -40,6 +42,7 @@ public final class EodinAnalytics {
     private let attributionKey = "eodin_attribution"
     private let sessionIdKey = "eodin_session_id"
     private let sessionStartKey = "eodin_session_start"
+    private let enabledKey = "eodin_enabled"
 
     // MARK: - Private Init
 
@@ -78,6 +81,7 @@ public final class EodinAnalytics {
         shared.loadAttribution()
         shared.initSession()
         shared.initDeviceInfo()
+        shared.loadEnabledState()
 
         // Initialize EventQueue for offline support
         if offlineMode {
@@ -122,11 +126,25 @@ public final class EodinAnalytics {
     /// - Parameters:
     ///   - eventName: The name of the event
     ///   - properties: Optional custom properties
+    /// Track an analytics event using the recommended `EodinEvent` enum.
+    /// Equivalent to the string-based `track(_:properties:)` overload.
+    public static func track(_ event: EodinEvent, properties: [String: Any]? = nil) {
+        track(event.rawValue, properties: properties)
+    }
+
     public static func track(_ eventName: String, properties: [String: Any]? = nil) {
         guard isConfigured,
               let appId = shared.appId,
               let deviceId = shared.deviceId else {
             shared.log("SDK not configured. Call configure() first.", isError: true)
+            return
+        }
+
+        // GDPR — disabled 일 때 silently drop (fail-silent 정책 유지)
+        // M2: queue.sync 로 setEnabled 와의 race 차단
+        let enabled = shared.queue.sync { shared.isEnabled }
+        guard enabled else {
+            shared.log("Tracking disabled (GDPR). Skipping event: \(eventName)")
             return
         }
 
@@ -254,7 +272,106 @@ public final class EodinAnalytics {
         shared.sessionStartTime = nil
     }
 
+    // MARK: - GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5)
+
+    /// Whether analytics tracking is currently enabled.
+    public static var isEnabled: Bool {
+        return shared.queue.sync { shared.isEnabled }
+    }
+
+    /// Enable or disable analytics tracking (GDPR compliance).
+    public static func setEnabled(_ enabled: Bool) {
+        shared.queue.sync { shared.isEnabled = enabled }
+        UserDefaults.standard.set(enabled, forKey: shared.enabledKey)
+        if !enabled {
+            EventQueue.shared.purgeForDataDeletion()
+        }
+        shared.log("Analytics \(enabled ? "enabled" : "disabled")")
+    }
+
+    /// Request deletion of all user data (GDPR right to erasure).
+    public static func requestDataDeletion(completion: @escaping (Bool) -> Void) {
+        guard isConfigured,
+              let endpoint = shared.apiEndpoint,
+              let apiKey = shared.apiKey,
+              let deviceId = shared.deviceId,
+              let appId = shared.appId,
+              let url = URL(string: "\(endpoint)/events/user-data") else {
+            shared.log("SDK not configured. Cannot request data deletion.", isError: true)
+            completion(false)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue(deviceId, forHTTPHeaderField: "X-Device-ID")
+
+        var body: [String: Any] = [
+            "device_id": deviceId,
+            "app_id": appId,
+        ]
+        if let userId = shared.userId { body["user_id"] = userId }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        let task = URLSession.shared.dataTask(with: request) { _, response, _ in
+            let success: Bool
+            if let httpResponse = response as? HTTPURLResponse {
+                success = httpResponse.statusCode == 200 || httpResponse.statusCode == 202
+            } else {
+                success = false
+            }
+            shared.log("Data deletion request: \(success ? "successful" : "failed")")
+            shared.clearLocalData()
+            // M3: main queue callback (Android parity)
+            DispatchQueue.main.async { completion(success) }
+        }
+        task.resume()
+    }
+
     // MARK: - Private Methods
+
+    private func loadEnabledState() {
+        if UserDefaults.standard.object(forKey: enabledKey) != nil {
+            isEnabled = UserDefaults.standard.bool(forKey: enabledKey)
+        } else {
+            isEnabled = true
+        }
+        log("Loaded enabled state: \(isEnabled)")
+    }
+
+    private func clearLocalData() {
+        // HIGH-3: preserve user's GDPR opt-out across data deletion.
+        let preservedEnabled = isEnabled
+
+        UserDefaults.standard.removeObject(forKey: deviceIdKey)
+        UserDefaults.standard.removeObject(forKey: userIdKey)
+        UserDefaults.standard.removeObject(forKey: attributionKey)
+        UserDefaults.standard.removeObject(forKey: sessionIdKey)
+        UserDefaults.standard.removeObject(forKey: sessionStartKey)
+        // enabledKey intentionally NOT removed — opt-out persists.
+
+        // H2: production-grade purge (lifecycle preserved).
+        EventQueue.shared.purgeForDataDeletion()
+
+        deviceId = nil
+        userId = nil
+        attribution = nil
+        sessionId = nil
+        sessionStartTime = nil
+        isEnabled = preservedEnabled
+
+        // C2/H1: re-bootstrap fresh identity.
+        if EodinAnalytics.isConfigured {
+            initDeviceId()
+            initSession()
+        }
+
+        log("Cleared all local data; re-bootstrapped fresh identity")
+    }
+
 
     private func initDeviceId() {
         if let storedId = UserDefaults.standard.string(forKey: deviceIdKey) {
@@ -392,8 +509,8 @@ public final class EodinAnalytics {
         shared.attribution = nil
         shared.deviceInfo = nil
         shared.offlineMode = true
+        shared.isEnabled = true   // L1
 
-        // Reset EventQueue
         EventQueue.shared.reset()
     }
 }

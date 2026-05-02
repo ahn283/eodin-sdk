@@ -16,6 +16,10 @@ public class EodinCapacitorAnalyticsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "requestTrackingAuthorization", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getATTStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getStatus", returnType: CAPPluginReturnPromise),
+        // GDPR (Phase 1.7 — open-issues §4.5)
+        CAPPluginMethod(name: "setEnabled", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "isEnabled", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestDataDeletion", returnType: CAPPluginReturnPromise),
     ]
 
     @objc func configure(_ call: CAPPluginCall) {
@@ -113,5 +117,26 @@ public class EodinCapacitorAnalyticsPlugin: CAPPlugin, CAPBridgedPlugin {
             "queueSize": EodinAnalytics.queueSize,
             "attStatus": EodinAnalytics.attStatus.rawValue
         ])
+    }
+
+    // MARK: - GDPR (Phase 1.7 — open-issues §4.5)
+
+    @objc func setEnabled(_ call: CAPPluginCall) {
+        guard let enabled = call.getBool("enabled") else {
+            call.reject("enabled (bool) is required")
+            return
+        }
+        EodinAnalytics.setEnabled(enabled)
+        call.resolve()
+    }
+
+    @objc func isEnabled(_ call: CAPPluginCall) {
+        call.resolve(["enabled": EodinAnalytics.isEnabled])
+    }
+
+    @objc func requestDataDeletion(_ call: CAPPluginCall) {
+        EodinAnalytics.requestDataDeletion { success in
+            call.resolve(["success": success])
+        }
     }
 }

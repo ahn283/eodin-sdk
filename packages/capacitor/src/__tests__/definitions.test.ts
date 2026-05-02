@@ -106,21 +106,31 @@ describe('Analytics type definitions', () => {
       requestTrackingAuthorization: jest.fn(),
       getATTStatus: jest.fn(),
       getStatus: jest.fn(),
+      // Phase 1.7 GDPR
+      setEnabled: jest.fn(),
+      isEnabled: jest.fn(),
+      requestDataDeletion: jest.fn(),
     };
-    expect(Object.keys(plugin)).toHaveLength(11);
+    expect(Object.keys(plugin)).toHaveLength(14);
   });
 });
 
 describe('EodinAnalytics public wrapper (positional API)', () => {
-  it('overrides only track and identify; other methods flow through prototype chain', () => {
+  it('overrides positional methods; other methods flow through prototype chain', () => {
     // Lazy import so the test does not bootstrap the Capacitor bridge prematurely.
     const { EodinAnalytics } = require('../index');
 
-    // The wrapper itself owns *only* the positional overrides. This protects
-    // against H1 regression: any future plugin method (e.g. setEnabled,
-    // requestDataDeletion) becomes available via the prototype chain instead
-    // of requiring a manual forwarder update here.
-    expect(Object.keys(EodinAnalytics).sort()).toEqual(['identify', 'track']);
+    // The wrapper itself owns the positional / unwrapped overrides only.
+    // This protects against H1 regression: any future plugin method becomes
+    // available via the prototype chain instead of requiring a manual
+    // forwarder update here.
+    expect(Object.keys(EodinAnalytics).sort()).toEqual([
+      'identify',
+      'isEnabled',
+      'requestDataDeletion',
+      'setEnabled',
+      'track',
+    ]);
 
     // Existing v1 surface still resolves through the prototype.
     const inheritedMethods = [
@@ -140,5 +150,8 @@ describe('EodinAnalytics public wrapper (positional API)', () => {
     // And the overridden ones are present too.
     expect(typeof EodinAnalytics.track).toBe('function');
     expect(typeof EodinAnalytics.identify).toBe('function');
+    expect(typeof EodinAnalytics.setEnabled).toBe('function');
+    expect(typeof EodinAnalytics.isEnabled).toBe('function');
+    expect(typeof EodinAnalytics.requestDataDeletion).toBe('function');
   });
 });

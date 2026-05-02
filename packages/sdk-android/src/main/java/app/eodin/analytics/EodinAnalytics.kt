@@ -49,6 +49,13 @@ object EodinAnalytics {
     private var sessionStartTime: Long = 0
     private var attribution: Attribution? = null
     private var deviceInfo: DeviceInfo? = null
+    /**
+     * GDPR — true 이면 이벤트 추적, false 이면 모든 track() silently drop.
+     * @Volatile (M2): 다른 thread (URLSession callback / background worker)
+     * 에서 [setEnabled] 와 race 시 visibility 보장.
+     */
+    @Volatile
+    private var isEnabledFlag: Boolean = true
 
     // Event queue
     private val eventQueue = CopyOnWriteArrayList<AnalyticsEvent>()
@@ -67,6 +74,11 @@ object EodinAnalytics {
     private const val KEY_SESSION_ID = "session_id"
     private const val KEY_SESSION_START = "session_start"
     private const val KEY_ATTRIBUTION = "attribution"
+    // MEDIUM-1: align with iOS / Web / Flutter (`eodin_enabled` namespace).
+    // Android 의 다른 키들은 PREFS_NAME 자체가 namespace 역할이라 prefix 없이
+    // 사용했지만, GDPR 플래그는 cross-platform debugging / wire 일관성을 위해
+    // prefix 살림.
+    private const val KEY_ENABLED = "eodin_enabled"
 
     private const val TAG = "EodinAnalytics"
 
@@ -113,6 +125,7 @@ object EodinAnalytics {
         loadAttribution()
         initSession()
         initDeviceInfo()
+        loadEnabledState()
 
         // Initialize EventQueue for offline support
         if (offlineMode) {
@@ -187,6 +200,12 @@ object EodinAnalytics {
     fun track(eventName: String, properties: Map<String, Any>? = null) {
         if (!isConfigured || applicationContext == null) {
             log("SDK not configured. Call configure() first.", isError = true)
+            return
+        }
+
+        // GDPR — disabled 일 때 silently drop (fail-silent 정책 유지)
+        if (!isEnabledFlag) {
+            log("Tracking disabled (GDPR). Skipping event: $eventName")
             return
         }
 
@@ -342,6 +361,139 @@ object EodinAnalytics {
         sessionStartTime = 0
     }
 
+    // GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5)
+
+    /**
+     * Whether analytics tracking is currently enabled.
+     */
+    @JvmStatic
+    val isEnabled: Boolean
+        get() = isEnabledFlag
+
+    /**
+     * Enable or disable analytics tracking (GDPR compliance).
+     *
+     * When disabled:
+     * - All [track] calls become silent no-ops (fail-silent)
+     * - No new events are queued or sent
+     * - Already-queued events stay in the queue until [requestDataDeletion]
+     *   is called or the queue naturally flushes
+     */
+    @JvmStatic
+    fun setEnabled(enabled: Boolean) {
+        isEnabledFlag = enabled
+        applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.putBoolean(KEY_ENABLED, enabled)
+            ?.apply()
+        // HIGH-1/M4: opt-out is immediate. Discard pending events.
+        if (!enabled) {
+            EventQueue.purgeForDataDeletion()
+        }
+        log("Analytics ${if (enabled) "enabled" else "disabled"}")
+    }
+
+    /**
+     * Request deletion of all user data (GDPR right to erasure).
+     *
+     * Sends DELETE `${apiEndpoint}/events/user-data` with the device's
+     * device_id / user_id / app_id. Local data (device_id, user_id, session,
+     * attribution, queued events, GDPR enabled flag) is cleared regardless
+     * of server response — the user's "right to erasure" is honoured locally
+     * even when the network is unavailable.
+     *
+     * @param callback invoked with `true` when the server responded 200/202,
+     *   `false` otherwise (incl. SDK not configured).
+     */
+    @JvmStatic
+    fun requestDataDeletion(callback: (Boolean) -> Unit) {
+        val endpoint = apiEndpoint
+        val key = apiKey
+        val device = deviceId
+        val app = appId
+        val ctx = applicationContext
+        if (!isConfigured || endpoint == null || key == null || device == null || app == null || ctx == null) {
+            log("SDK not configured. Cannot request data deletion.", isError = true)
+            callback(false)
+            return
+        }
+
+        Thread {
+            val success = try {
+                val url = java.net.URL("$endpoint/events/user-data")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "DELETE"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Accept", "application/json")
+                conn.setRequestProperty("X-API-Key", key)
+                conn.setRequestProperty("X-Device-ID", device)
+
+                val body = buildString {
+                    append("{")
+                    append("\"device_id\":\"").append(device).append("\",")
+                    append("\"app_id\":\"").append(app).append("\"")
+                    userId?.let { append(",\"user_id\":\"").append(it).append("\"") }
+                    append("}")
+                }
+                conn.outputStream.use { it.write(body.toByteArray()) }
+
+                val code = conn.responseCode
+                conn.disconnect()
+                code == 200 || code == 202
+            } catch (e: Exception) {
+                log("Data deletion request error: $e", isError = true)
+                false
+            }
+
+            // Always clear local data — user's right to erasure honoured locally
+            // even if the network failed.
+            clearLocalData()
+            mainHandler.post { callback(success) }
+        }.start()
+    }
+
+    private fun loadEnabledState() {
+        val prefs = applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        isEnabledFlag = prefs?.getBoolean(KEY_ENABLED, true) ?: true
+        log("Loaded enabled state: $isEnabledFlag")
+    }
+
+    private fun clearLocalData() {
+        // HIGH-3: preserve user's GDPR opt-out across data deletion.
+        val preservedEnabled = isEnabledFlag
+
+        applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.apply {
+                remove(KEY_DEVICE_ID)
+                remove(KEY_USER_ID)
+                remove(KEY_SESSION_ID)
+                remove(KEY_SESSION_START)
+                remove(KEY_ATTRIBUTION)
+                // KEY_ENABLED intentionally NOT removed — opt-out persists.
+            }
+            ?.apply()
+
+        // H2: production-grade purge (lifecycle preserved).
+        EventQueue.purgeForDataDeletion()
+
+        deviceId = null
+        userId = null
+        attribution = null
+        sessionId = null
+        sessionStartTime = 0
+        isEnabledFlag = preservedEnabled
+
+        // C2/H1: re-bootstrap fresh identity.
+        if (isConfigured) {
+            initDeviceId()
+            initSession()
+        }
+
+        log("Cleared all local data; re-bootstrapped fresh identity")
+    }
+
     // Private methods
 
     private fun shouldFlush(): Boolean {
@@ -457,6 +609,7 @@ object EodinAnalytics {
         eventQueue.clear()
         networkClient = null
         offlineMode = true
+        isEnabledFlag = true   // L1
 
         // Reset EventQueue
         @Suppress("DEPRECATION")

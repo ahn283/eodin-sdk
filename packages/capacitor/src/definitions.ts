@@ -32,6 +32,10 @@ export interface EodinAnalyticsPlugin {
   requestTrackingAuthorization(): Promise<{ status: ATTStatus }>;
   getATTStatus(): Promise<{ status: ATTStatus }>;
   getStatus(): Promise<AnalyticsStatus>;
+  // GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5)
+  setEnabled(options: { enabled: boolean }): Promise<void>;
+  isEnabled(): Promise<{ enabled: boolean }>;
+  requestDataDeletion(): Promise<{ success: boolean }>;
 }
 
 export interface AnalyticsConfigureOptions {

@@ -49,6 +49,12 @@ object EodinAnalytics {
     private var sessionStartTime: Long = 0
     private var attribution: Attribution? = null
     private var deviceInfo: DeviceInfo? = null
+    /**
+     * GDPR — true 이면 이벤트 추적, false 이면 모든 track() silently drop.
+     * @Volatile (M2): cross-thread visibility 보장.
+     */
+    @Volatile
+    private var isEnabledFlag: Boolean = true
 
     // Event queue
     private val eventQueue = CopyOnWriteArrayList<AnalyticsEvent>()
@@ -67,6 +73,7 @@ object EodinAnalytics {
     private const val KEY_SESSION_ID = "session_id"
     private const val KEY_SESSION_START = "session_start"
     private const val KEY_ATTRIBUTION = "attribution"
+    private const val KEY_ENABLED = "eodin_enabled"   // MEDIUM-1 cross-platform parity
 
     private const val TAG = "EodinAnalytics"
 
@@ -113,6 +120,7 @@ object EodinAnalytics {
         loadAttribution()
         initSession()
         initDeviceInfo()
+        loadEnabledState()
 
         // Initialize EventQueue for offline support
         if (offlineMode) {
@@ -162,6 +170,22 @@ object EodinAnalytics {
     fun getAttribution(): Attribution? = attribution
 
     /**
+     * Track an analytics event using the recommended [EodinEvent] enum.
+     *
+     * Equivalent to the string-based [track] but provides IDE autocomplete
+     * and aligns with the unified event reference. For app-specific domain
+     * events not in the enum, use the string variant.
+     *
+     * @param event The recommended event
+     * @param properties Optional custom properties
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun track(event: EodinEvent, properties: Map<String, Any>? = null) {
+        track(event.eventName, properties)
+    }
+
+    /**
      * Track an analytics event.
      *
      * @param eventName The name of the event
@@ -171,6 +195,12 @@ object EodinAnalytics {
     fun track(eventName: String, properties: Map<String, Any>? = null) {
         if (!isConfigured || applicationContext == null) {
             log("SDK not configured. Call configure() first.", isError = true)
+            return
+        }
+
+        // GDPR — disabled 일 때 silently drop (fail-silent 정책 유지)
+        if (!isEnabledFlag) {
+            log("Tracking disabled (GDPR). Skipping event: $eventName")
             return
         }
 
@@ -326,6 +356,122 @@ object EodinAnalytics {
         sessionStartTime = 0
     }
 
+    // GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5)
+
+    /** Whether analytics tracking is currently enabled. */
+    @JvmStatic
+    val isEnabled: Boolean
+        get() = isEnabledFlag
+
+    /**
+     * Enable or disable analytics tracking (GDPR compliance).
+     *
+     * When disabled:
+     * - All [track] calls become silent no-ops (fail-silent)
+     * - No new events are queued or sent
+     */
+    @JvmStatic
+    fun setEnabled(enabled: Boolean) {
+        isEnabledFlag = enabled
+        applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.putBoolean(KEY_ENABLED, enabled)
+            ?.apply()
+        if (!enabled) {
+            EventQueue.purgeForDataDeletion()
+        }
+        log("Analytics ${if (enabled) "enabled" else "disabled"}")
+    }
+
+    /**
+     * Request deletion of all user data (GDPR right to erasure).
+     *
+     * Sends DELETE `${apiEndpoint}/events/user-data`. Local data is cleared
+     * regardless of server response.
+     */
+    @JvmStatic
+    fun requestDataDeletion(callback: (Boolean) -> Unit) {
+        val endpoint = apiEndpoint
+        val key = apiKey
+        val device = deviceId
+        val app = appId
+        val ctx = applicationContext
+        if (!isConfigured || endpoint == null || key == null || device == null || app == null || ctx == null) {
+            log("SDK not configured. Cannot request data deletion.", isError = true)
+            callback(false)
+            return
+        }
+
+        Thread {
+            val success = try {
+                val url = java.net.URL("$endpoint/events/user-data")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "DELETE"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Accept", "application/json")
+                conn.setRequestProperty("X-API-Key", key)
+                conn.setRequestProperty("X-Device-ID", device)
+
+                val body = buildString {
+                    append("{")
+                    append("\"device_id\":\"").append(device).append("\",")
+                    append("\"app_id\":\"").append(app).append("\"")
+                    userId?.let { append(",\"user_id\":\"").append(it).append("\"") }
+                    append("}")
+                }
+                conn.outputStream.use { it.write(body.toByteArray()) }
+
+                val code = conn.responseCode
+                conn.disconnect()
+                code == 200 || code == 202
+            } catch (e: Exception) {
+                log("Data deletion request error: $e", isError = true)
+                false
+            }
+
+            clearLocalData()
+            mainHandler.post { callback(success) }
+        }.start()
+    }
+
+    private fun loadEnabledState() {
+        val prefs = applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        isEnabledFlag = prefs?.getBoolean(KEY_ENABLED, true) ?: true
+        log("Loaded enabled state: $isEnabledFlag")
+    }
+
+    private fun clearLocalData() {
+        val preservedEnabled = isEnabledFlag
+
+        applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.apply {
+                remove(KEY_DEVICE_ID)
+                remove(KEY_USER_ID)
+                remove(KEY_SESSION_ID)
+                remove(KEY_SESSION_START)
+                remove(KEY_ATTRIBUTION)
+            }
+            ?.apply()
+
+        EventQueue.purgeForDataDeletion()
+
+        deviceId = null
+        userId = null
+        attribution = null
+        sessionId = null
+        sessionStartTime = 0
+        isEnabledFlag = preservedEnabled
+
+        if (isConfigured) {
+            initDeviceId()
+            initSession()
+        }
+
+        log("Cleared all local data; re-bootstrapped fresh identity")
+    }
+
     // Private methods
 
     private fun shouldFlush(): Boolean {
@@ -441,6 +587,7 @@ object EodinAnalytics {
         eventQueue.clear()
         networkClient = null
         offlineMode = true
+        isEnabledFlag = true   // L1
 
         // Reset EventQueue
         @Suppress("DEPRECATION")

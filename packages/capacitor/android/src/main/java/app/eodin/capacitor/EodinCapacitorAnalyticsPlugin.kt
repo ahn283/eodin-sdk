@@ -132,4 +132,29 @@ class EodinCapacitorAnalyticsPlugin : Plugin() {
         }
         call.resolve(data)
     }
+
+    // GDPR (Phase 1.7 — open-issues §4.5)
+
+    @PluginMethod
+    fun setEnabled(call: PluginCall) {
+        val enabled = call.getBoolean("enabled")
+        if (enabled == null) {
+            call.reject("enabled (bool) is required")
+            return
+        }
+        EodinAnalytics.setEnabled(enabled)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun isEnabled(call: PluginCall) {
+        call.resolve(JSObject().apply { put("enabled", EodinAnalytics.isEnabled) })
+    }
+
+    @PluginMethod
+    fun requestDataDeletion(call: PluginCall) {
+        EodinAnalytics.requestDataDeletion { success ->
+            call.resolve(JSObject().apply { put("success", success) })
+        }
+    }
 }

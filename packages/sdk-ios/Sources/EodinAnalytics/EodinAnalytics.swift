@@ -19,6 +19,8 @@ public final class EodinAnalytics {
     private var appId: String?
     private var isDebug = false
     private var offlineMode = true
+    /// GDPR — true 이면 이벤트 추적, false 이면 모든 track() silently drop.
+    private var isEnabled = true
 
     // MARK: - State
 
@@ -40,6 +42,7 @@ public final class EodinAnalytics {
     private let attributionKey = "eodin_attribution"
     private let sessionIdKey = "eodin_session_id"
     private let sessionStartKey = "eodin_session_start"
+    private let enabledKey = "eodin_enabled"
 
     // MARK: - Private Init
 
@@ -78,6 +81,7 @@ public final class EodinAnalytics {
         shared.loadAttribution()
         shared.initSession()
         shared.initDeviceInfo()
+        shared.loadEnabledState()
 
         // Initialize EventQueue for offline support
         if offlineMode {
@@ -140,6 +144,14 @@ public final class EodinAnalytics {
               let appId = shared.appId,
               let deviceId = shared.deviceId else {
             shared.log("SDK not configured. Call configure() first.", isError: true)
+            return
+        }
+
+        // GDPR — disabled 일 때 silently drop (fail-silent 정책 유지)
+        // M2: queue.sync 로 setEnabled 와의 race 차단 (cross-thread visibility)
+        let enabled = shared.queue.sync { shared.isEnabled }
+        guard enabled else {
+            shared.log("Tracking disabled (GDPR). Skipping event: \(eventName)")
             return
         }
 
@@ -267,7 +279,131 @@ public final class EodinAnalytics {
         shared.sessionStartTime = nil
     }
 
+    // MARK: - GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5)
+
+    /// Whether analytics tracking is currently enabled.
+    public static var isEnabled: Bool {
+        return shared.queue.sync { shared.isEnabled }
+    }
+
+    /// Enable or disable analytics tracking (GDPR compliance).
+    ///
+    /// When disabled:
+    /// - All `track(...)` calls become silent no-ops (fail-silent)
+    /// - No new events are queued or sent
+    /// - Already-queued events stay in the queue until `requestDataDeletion()`
+    ///   is called or the queue naturally flushes
+    public static func setEnabled(_ enabled: Bool) {
+        shared.queue.sync { shared.isEnabled = enabled }
+        UserDefaults.standard.set(enabled, forKey: shared.enabledKey)
+        // HIGH-1/M4: opt-out is immediate. Discard pending events so the
+        // queue does not flush pre-disable events after the user opts out.
+        if !enabled {
+            EventQueue.shared.purgeForDataDeletion()
+        }
+        shared.log("Analytics \(enabled ? "enabled" : "disabled")")
+    }
+
+    /// Request deletion of all user data (GDPR right to erasure).
+    ///
+    /// Sends DELETE `${apiEndpoint}/events/user-data` with the device's
+    /// device_id / user_id / app_id. Local data (device_id, user_id,
+    /// session, attribution, queued events, GDPR enabled flag) is cleared
+    /// regardless of server response — the user's "right to erasure" is
+    /// honoured locally even when the network is unavailable.
+    ///
+    /// - Parameter completion: invoked with `true` when the server
+    ///   responded 200/202, `false` otherwise (incl. SDK not configured).
+    public static func requestDataDeletion(completion: @escaping (Bool) -> Void) {
+        guard isConfigured,
+              let endpoint = shared.apiEndpoint,
+              let apiKey = shared.apiKey,
+              let deviceId = shared.deviceId,
+              let appId = shared.appId,
+              let url = URL(string: "\(endpoint)/events/user-data") else {
+            shared.log("SDK not configured. Cannot request data deletion.", isError: true)
+            completion(false)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue(deviceId, forHTTPHeaderField: "X-Device-ID")
+
+        var body: [String: Any] = [
+            "device_id": deviceId,
+            "app_id": appId,
+        ]
+        if let userId = shared.userId { body["user_id"] = userId }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        let task = URLSession.shared.dataTask(with: request) { _, response, _ in
+            let success: Bool
+            if let httpResponse = response as? HTTPURLResponse {
+                success = httpResponse.statusCode == 200 || httpResponse.statusCode == 202
+            } else {
+                success = false
+            }
+            shared.log("Data deletion request: \(success ? "successful" : "failed")")
+            // Always clear local data — user's right to erasure honoured locally
+            // even if the network failed.
+            shared.clearLocalData()
+            // M3 (Phase 1.7 review): callback on main queue — cross-platform
+            // parity with Android (mainHandler.post) + safe for UI updates.
+            DispatchQueue.main.async { completion(success) }
+        }
+        task.resume()
+    }
+
     // MARK: - Private Methods
+
+    private func loadEnabledState() {
+        if UserDefaults.standard.object(forKey: enabledKey) != nil {
+            isEnabled = UserDefaults.standard.bool(forKey: enabledKey)
+        } else {
+            isEnabled = true
+        }
+        log("Loaded enabled state: \(isEnabled)")
+    }
+
+    private func clearLocalData() {
+        // HIGH-3 (Phase 1.7 logging-audit): preserve user's GDPR opt-out
+        // across data deletion. Re-enabling silently would defeat the
+        // user's privacy choice.
+        let preservedEnabled = isEnabled
+
+        UserDefaults.standard.removeObject(forKey: deviceIdKey)
+        UserDefaults.standard.removeObject(forKey: userIdKey)
+        UserDefaults.standard.removeObject(forKey: attributionKey)
+        UserDefaults.standard.removeObject(forKey: sessionIdKey)
+        UserDefaults.standard.removeObject(forKey: sessionStartKey)
+        // enabledKey intentionally NOT removed — opt-out persists.
+
+        // H2 (Phase 1.7): use production-grade purge instead of testing-only
+        // reset(). EventQueue stays initialised so subsequent enqueue() works.
+        EventQueue.shared.purgeForDataDeletion()
+
+        deviceId = nil
+        userId = nil
+        attribution = nil
+        sessionId = nil
+        sessionStartTime = nil
+        isEnabled = preservedEnabled
+
+        // C2/H1 (Phase 1.7 reviews): re-bootstrap fresh identity so
+        // subsequent track() does not silently drop / crash on null
+        // device_id. configure() stays valid; we just regenerate per-
+        // device state.
+        if EodinAnalytics.isConfigured {
+            initDeviceId()
+            initSession()
+        }
+
+        log("Cleared all local data; re-bootstrapped fresh identity")
+    }
 
     private func initDeviceId() {
         if let storedId = UserDefaults.standard.string(forKey: deviceIdKey) {
@@ -405,6 +541,7 @@ public final class EodinAnalytics {
         shared.attribution = nil
         shared.deviceInfo = nil
         shared.offlineMode = true
+        shared.isEnabled = true   // L1 (Phase 1.7): test cross-pollution 차단
 
         // Reset EventQueue
         EventQueue.shared.reset()

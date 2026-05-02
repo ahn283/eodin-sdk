@@ -364,6 +364,20 @@ object EventQueue {
     }
 
     /**
+     * Clear all queued events and persisted storage as part of GDPR data
+     * deletion (Phase 1.7). Unlike [reset] (testing-only), this preserves
+     * the queue's lifecycle (`isInitialized` stays true, network callback
+     * stays registered, flush timer keeps running) so the next [enqueue]
+     * from the same configured session continues to work.
+     */
+    @JvmStatic
+    fun purgeForDataDeletion() {
+        memoryQueue.clear()
+        getPrefs()?.edit()?.clear()?.apply()
+        retryCount.set(0)
+    }
+
+    /**
      * Reset for testing.
      */
     @JvmStatic

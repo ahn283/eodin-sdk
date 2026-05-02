@@ -349,6 +349,13 @@ class EodinAnalytics {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, enabled);
 
+    // HIGH-1/M4 (Phase 1.7 logging-audit): opt-out is immediate, not
+    // queue-deferred. Discard pending events so post-disable wire traffic
+    // does not carry pre-disable events forward.
+    if (!enabled && _offlineMode) {
+      await EventQueue.instance.purgeForDataDeletion();
+    }
+
     _log('Analytics ${enabled ? 'enabled' : 'disabled'}');
   }
 
@@ -366,7 +373,7 @@ class EodinAnalytics {
 
     try {
       final response = await client.delete(
-        Uri.parse('$_apiEndpoint/user-data'),
+        Uri.parse('$_apiEndpoint/events/user-data'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -375,8 +382,9 @@ class EodinAnalytics {
         },
         body: jsonEncode({
           'device_id': _deviceId,
-          'user_id': _userId,
           'app_id': _appId,
+          // L2: user_id omit when null — cross-platform body shape parity
+          if (_userId != null) 'user_id': _userId,
         }),
       );
 
@@ -493,27 +501,43 @@ class EodinAnalytics {
   }
 
   static Future<void> _clearLocalData() async {
+    // HIGH-3 (Phase 1.7 logging-audit): preserve user's GDPR opt-out across
+    // data deletion. If the user disabled tracking and then requested data
+    // deletion, that opt-out intent must persist — re-enabling silently
+    // would defeat the privacy choice.
+    final preservedEnabled = _isEnabled;
+
     final prefs = await SharedPreferences.getInstance();
 
-    // Clear all SDK-related data
+    // Clear identity / session / attribution but keep enabled flag
     await prefs.remove(_deviceIdKey);
     await prefs.remove(_userIdKey);
     await prefs.remove(_attributionKey);
     await prefs.remove(_sessionIdKey);
     await prefs.remove(_sessionStartKey);
-    await prefs.remove(_enabledKey);
 
-    // Clear EventQueue data
+    // Clear EventQueue data via production-grade purge (H2)
     if (_offlineMode) {
-      await EventQueue.instance.reset();
+      await EventQueue.instance.purgeForDataDeletion();
     }
 
-    // Reset in-memory state
+    // Reset in-memory identity state
     _deviceId = null;
     _userId = null;
     _attribution = null;
     _sessionId = null;
-    _isEnabled = true;
+    _isEnabled = preservedEnabled;
+
+    // C2/H1 (Phase 1.7 reviews): re-bootstrap so subsequent track() calls
+    // do not crash on null device_id / silently drop on uninitialised queue.
+    // The user has been "deleted"; we treat them as a brand-new device from
+    // this point. configure() is NOT re-invoked — apiEndpoint/apiKey/appId
+    // stay set; we just regenerate the per-device identity.
+    if (isConfigured) {
+      await _initDeviceId();
+      await _initSession();
+      // EventQueue stays initialised after purge — no re-init needed.
+    }
 
     _log('Cleared all local data');
   }
