@@ -15,7 +15,7 @@ PRD 참고: `./PRD.md` (2026-05-02 재정리 — Auth 트랙 분리)
 | Phase 0.9 + 0.9.1 (Service catalog) | ✅ 완료 | schema/seed/web 라우터 가드 — LegalService 인프라는 Auth 트랙에서 활용 예정 |
 | **Phase 1 (SDK 정비)** | 🚧 진행 중 (8/9) | 1.1 ✅ / 1.3 ✅ / 1.6 (S9) ✅ / 1.9 ✅ / 1.6 (S8) ✅ / 1.7 (GDPR) ✅ / 1.8 (문서) ✅ 완료. 다음: 1.10 (베타 릴리스) |
 | Phase 5 (5개 앱 마이그) | 🚧 가이드 완료, 실제 마이그 대기 | `migration-guide.md` 산출. Phase 1.10 후 시작 |
-| **Phase Web (`eodin-web` 신설)** | 🚧 별도 트랙 진행 중 (Phase 0 진행) | 순수 web 로깅 SDK (analytics only). 채택 / 적용 계획은 본 트랙 범위 밖. PRD: `web-sdk/PRD.md` / CHECKLIST: `web-sdk/CHECKLIST.md` |
+| **Phase Web (`eodin-web` 신설)** | ✅ Phase 0~5 완료. publish 라이브 (2026-05-03) | `eodin-web@1.0.0-beta.1` npmjs.org 등록. `@eodin` 조직 미존재로 unscoped 이름 채택. Phase 5.4 (kidstopia 회귀) 만 capacitor publish 시점에 묶임. PRD: `web-sdk/PRD.md` / CHECKLIST: `web-sdk/CHECKLIST.md` |
 
 ### Phase 0 산출 문서
 

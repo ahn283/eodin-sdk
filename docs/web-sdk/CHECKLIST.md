@@ -9,15 +9,18 @@ PRD 참고: `./PRD.md`
 
 ## 진행 상태 (Last update: 2026-05-03)
 
+> ✅ **PUBLISHED** — `eodin-web@1.0.0-beta.1` 가 npmjs.org 에 라이브: https://www.npmjs.com/package/eodin-web
+
 | Phase | 상태 | 비고 |
 |---|---|---|
 | Phase 0 (사전 정렬) | ✅ 완료 | 메인 PRD / `web-sdk-targets.md` / 메인 CHECKLIST 정합성 갱신 |
 | Phase 1.0 (workspace 도입) | ✅ 완료 | root `package.json` 신설, capacitor 빌드/테스트 64/64 통과, code review Grade A |
-| Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
+| Phase 1 (패키지 신설) | ✅ 완료 | 1.1 toolchain + 1.2 internal 5모듈 추출 + 1.3 EodinEvent enum + 1.4 빌드 검증. 8 suites / 88 tests |
 | Phase 2 (Capacitor 어댑터화) | ✅ 완료 | web.ts 729→525 lines (-28%). sdk-web `/internal` subpath. capacitor rollup external + IIFE globals. H1/H2/H3 모두 closure |
-| Phase 3 (Public surface) | ✅ 완료 | EodinAnalytics 본체 + GDPR + autoTrackPageView + globalThis pin (H1) + parity matrix 산출. 7 suites / 80 tests |
+| Phase 3 (Public surface) | ✅ 완료 | EodinAnalytics 본체 + GDPR + autoTrackPageView + globalThis pin (H1) + parity matrix 산출. C1+H1-H4 적용 |
 | Phase 4 (테스트 + 문서) | ✅ 완료 | page-view-tracker test 8개 추가 (총 88 tests). TypeDoc 검증 internal 미노출. integration-guide §3.5 + §6.1 분리. README 갱신 |
-| Phase 5 (베타 publish) | 🚧 5.1 사전 점검 ✅ / 5.2 publish (사용자 토큰 대기) / 5.4 kidstopia 검증 (publish 후) | tarball 55.2 kB / 55 files / LICENSE+README 포함 / src·tests 미노출. security-check.sh 통과 |
+| Phase 5 (베타 publish) | ✅ 완료 (5.4 제외) | 5.1 사전 점검 ✅ / 5.2 publish ✅ (`eodin-web@1.0.0-beta.1`, ahn283 namespace) / 5.3 검증 ✅ / 5.4 kidstopia 회귀 검증은 capacitor publish 와 묶여서 별도 ticket |
+| **이름 결정** | ✅ rename | 원래 `@eodin/web` 으로 publish 계획. `@eodin` 조직이 npmjs.org 미존재 + GitHub 점유로 publish 불가 → unscoped `eodin-web` 으로 ahn283 namespace 에 publish |
 
 ### 산출 문서 (예정)
 
@@ -233,22 +236,34 @@ PRD 참고: `./PRD.md`
 - [x] 최종 빌드 + 테스트: sdk-web 8 suites / 88 tests / capacitor 4 suites / 64 tests 회귀 0
 - [x] 코드 리뷰: senior-code-reviewer Phase 5.1 sub-task 는 빌드 config 검증이라 별도 review 안 함 (Phase 4 review 에 포함)
 
-### 5.2 publish 실행 — ⏸️ **사용자 토큰 대기**
-- [ ] `npm publish --access public --tag beta` (사용자 토큰 필요)
-- [ ] git tag `web-sdk-v1.0.0-beta.1`
-- [ ] origin push
+### 5.2 publish 실행 ✅ (2026-05-03)
+- [x] `npm publish --userconfig=<temp> --tag beta` 성공 — `eodin-web@1.0.0-beta.1` 라이브
+  - registry: `https://registry.npmjs.org`
+  - maintainer: `ahn283 <ahn283@gmail.com>`
+  - dist-tags: `beta`, `latest`
+  - tarball: 55.3 kB / unpacked 206.0 kB / 55 files
+  - shasum: `f2f742564bfce85b6d9fb88b9b0a8443b126d10b`
+- [x] git tag `eodin-web-v1.0.0-beta.1` push 완료 (commit `bdf0131`)
+- [x] origin/main push 완료
+- **이름 변경 사유**: `@eodin/web` 시도 → npmjs.org 의 `@eodin` 조직 미생성 (`404 Scope not found`) + GitHub `@eodin` username 은 다른 사용자 (Yuri Novik) 점유 → unscoped `eodin-web` 으로 ahn283 namespace 사용
 
-### 5.3 publish 후 검증
-- [ ] `npm view eodin-web@beta` 로 버전 확인
-- [ ] 별도 sandbox 프로젝트에서 `npm install eodin-web@beta` → import → configure → track 1회 e2e 확인
+### 5.3 publish 후 검증 ✅
+- [x] `npm view eodin-web` — `1.0.0-beta.1` MIT, dist-tags `beta+latest`, maintainer `ahn283` 확인
+- [x] `curl https://registry.npmjs.org/eodin-web` — 정상 metadata 반환
 
-### 5.4 kidstopia vendor tgz 사전 회귀 검증 (G1 — 라이브 회귀 가드)
-- [ ] `eodin-web` publish 완료 후 `@eodin/capacitor` 도 patch 빌드 (workspace:* → actual version range 자동 치환 확인)
+### 5.4 kidstopia vendor tgz 사전 회귀 검증 (G1) — ⏸️ capacitor publish 와 묶임
+- [ ] `eodin-web` publish 완료 ✅ — capacitor 의 `dependencies: { "eodin-web": "^1.0.0-beta.1" }` 가 npm 자동 해결 가능
+- [ ] `@eodin/capacitor` 도 publish 또는 patch tgz 빌드 (단 capacitor 는 `@eodin` scope 라 동일 publish 이슈 — 별도 결정 필요. 차후 ticket)
 - [ ] `npm pack @eodin/capacitor` → vendor tgz 산출
-- [ ] kidstopia 로컬 환경에서 기존 vendor tgz 를 신규 tgz 로 교체
+- [ ] kidstopia 로컬 환경에서 기존 vendor tgz 를 신규 tgz 로 교체. `eodin-web` 은 npm 에서 자동 install
 - [ ] kidstopia 로컬 빌드 (`npx cap sync` + `npm run build`) 정상
 - [ ] 로컬 device / browser 에서 EodinAnalytics 호출 → `api.eodin.app` 도달 1회 확인
 - [ ] 회귀 없음 확인 후 메인 PRD §5 (5개 앱 마이그) 의 kidstopia 마이그 입력으로 활용
+
+### 5.5 publish 후 보안 점검 ⚠️
+- [ ] **사용자 액션 — npm token 회전**: 본 publish 에 사용한 token 이 채팅 세션에 노출됨. https://www.npmjs.com/settings/ahn283/tokens 에서 즉시 revoke + 재발급
+- [x] `.env` 파일 root `.gitignore` 등록 완료 — git tracked 아님 (`git check-ignore .env` 통과)
+- [x] commit history 점검 — `.env` 가 어떤 commit 에도 포함 안 됨 확인
 
 ---
 
