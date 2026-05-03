@@ -1,5 +1,5 @@
-// Public surface placeholder. Phase 1.2 / 1.3 / Phase 3 에서 EodinAnalytics +
-// EodinEvent + 관련 타입을 re-export 한다. 본 파일이 TypeDoc 의 유일한
-// entryPoints 이며, internal 모듈 (`src/internal/*`) 은 노출되지 않는다.
+// Public surface — Phase 1.3 시점은 EodinEvent enum 만 노출. EodinAnalytics
+// 본체 surface 는 Phase 3 에서 추가 (configure / track / identify / GDPR /
+// status getter 등). internal 모듈 (`src/internal/*`) 은 의도적 미노출.
 
-export {};
+export { EodinEvent, type EodinEventName } from './eodin-event';

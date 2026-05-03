@@ -94,9 +94,15 @@ PRD 참고: `./PRD.md`
 - [x] 코드 리뷰: senior-code-reviewer Grade A. CRITICAL 0 / HIGH 0 / MEDIUM 3 / LOW 4 / INFO 5. 즉시 적용: M2 (storage 헬퍼 일관성) + L1 (quota halving 결정적 검증). 후속: M1 (quota drop 관측성) / M3 (runtime validation) / I1 / I2 는 Phase 3 에서 처리
 - [x] 산출: `web-sdk/reviews/phase-1.2-code-review.md`
 
-### 1.3 EodinEvent enum (web)
-- [ ] `src/eodin-event.ts` — 4채널과 동일 wire string (Flutter `eodin_event.dart` / iOS `EodinEvent.swift` / Android `EodinEvent.kt` / Capacitor `eodin-event.ts` 와 cross-check)
-- [ ] enum 값 hard-coded test (wire string 변경이 silent 회귀 되지 않도록)
+### 1.3 EodinEvent enum (web) ✅
+- [x] `src/eodin-event.ts` — 4채널 38 entries 의 wire string 동일 + web 고유 `PageView: 'page_view'` 추가 (메인 PRD §10 의 P1 anchor 등록 — 향후 mobile 채널이 같은 이벤트 추가 시 동일 wire string 강제)
+- [x] enum 값 hard-coded test (wire string 변경 silent 회귀 가드)
+- [x] **invariant gates** (Android EodinEventTest 와 동등): snake_case 정규식 / ≤40자 길이 / 유일성 / Phase 0.4 forbidden v1 names 14건 회귀 가드
+- [x] **cross-channel parity test**: capacitor `eodin-event.ts` 의 38 entries 와 wire string 동일성 require 동적 비교
+- [x] iOS / Android grep cross-check — wire string drift 0건 확인
+- [x] src/index.ts 에서 `EodinEvent` / `EodinEventName` re-export — 첫 public surface
+- [x] 코드 리뷰: senior-code-reviewer Grade A. CRITICAL 0 / HIGH 0 / MEDIUM 2 / LOW 3 / INFO 4. 즉시 적용: M1 (invariant gates) + M2 (PRD §10 P1 anchor). 후속: L1 (require path → workspace symlink 권장) — Phase 3.3 parity-matrix-5ch.md 와 묶임
+- [x] 산출: `web-sdk/reviews/phase-1.3-code-review.md`
 
 ### 1.4 빌드 검증
 - [ ] `npm install`
