@@ -77,13 +77,13 @@ Eodin 산하 5개 앱 (fridgify / plori / tempy / arden / kidstopia) 이 eodin S
 
 진단으로 도출된 13개 항목 중 **M5 (EodinAuth 모듈 신설)** 은 Auth 트랙으로 분리. 본 PRD 는 12개를 다룬다.
 
-**SDK 플랫폼**: Flutter / iOS / Android / Capacitor (Phase 1.9 web 분기 동작화 완료) / Web (Auth 의존이라 본 트랙에서는 신설 보류).
+**SDK 플랫폼**: Flutter / iOS / Android / Capacitor (Phase 1.9 web 분기 동작화 완료) / Web. Web 채널 (`@eodin/web`) 의 analytics 모듈은 **별도 트랙** (`web-sdk/PRD.md`) 으로 진행 — Auth 의존 없음. EodinAuth 모듈 추가만 Auth 트랙 가동 시점 의존.
 
 ### 6.1 Must (4개)
 
 | # | 항목 | 정비 내용 | 상태 |
 |---|---|---|---|
-| M1 | **5채널 SDK 모놀리식 단일 패키지 통일** | iOS Package.swift modular product 패턴 차용. Flutter `eodin_sdk` (모듈별 import: `analytics.dart` / `deeplink.dart`), iOS `EodinSDK`, Android `app.eodin:eodin-sdk`, Capacitor `@eodin/capacitor`. Web 은 본 트랙 보류 | ✅ Phase 1.1 |
+| M1 | **5채널 SDK 모놀리식 단일 패키지 통일** | iOS Package.swift modular product 패턴 차용. Flutter `eodin_sdk` (모듈별 import: `analytics.dart` / `deeplink.dart`), iOS `EodinSDK`, Android `app.eodin:eodin-sdk`, Capacitor `@eodin/capacitor`. Web (`@eodin/web`, analytics only) 은 별도 트랙 (`web-sdk/PRD.md`) 진행. EodinAuth 모듈은 Auth 트랙 의존 | ✅ Phase 1.1 (4채널) / 🚧 web 별도 트랙 |
 | M2 | **API endpoint 단일화** | SDK 의 호출 endpoint 를 `api.eodin.app/api/v1` 로 통일. `link.eodin.app` 은 사용자 진입 URL 전용 (마케팅 `/{service}/{id}`). SDK 코드/문서/예제 일관 | ✅ Phase 1.3 |
 | M3 | **시맨틱 버저닝 + CHANGELOG** | 4채널 모두 `1.0.0` 고정 → semver 도입. 패키지별 `CHANGELOG.md` 신설. breaking 시 major bump 강제 | 🚧 Phase 1.10 |
 | M4 | **레지스트리 정식 배포 (4채널)** | Public 저장소 `ahn283/eodin-sdk` (Phase 0.5 신설) → pub.dev / SwiftPM tag / Maven Central / npm `@eodin/capacitor` 의 4채널 동시 배포. 단일 git tag `sdk-v2.0.0` push 시 GitHub Actions 가 4개 publish | ⏸️ Phase 1.2 / 0.5.6 (사용자 토큰 대기) |
@@ -230,6 +230,7 @@ Eodin 산하 5개 앱 (fridgify / plori / tempy / arden / kidstopia) 이 eodin S
 
 | 일자 | 변경 |
 |---|---|
+| 2026-05-03 (web-sdk 분리) | `@eodin/web` analytics 모듈을 별도 트랙으로 분리 (`web-sdk/PRD.md`). 본 PRD §6 의 "Web (Auth 의존이라 본 트랙에서는 신설 보류)" 가정을 무효화 — Auth 의존은 EodinAuth 모듈에만 적용. M1 행 갱신 |
 | 2026-05-02 (재정리) | **본 PRD 의 범위를 SDK 화 한정으로 축소.** 통합 ID / EodinAuth / Identity API / 통합 Firebase / 통합 약관 / linkgo NextAuth 전환 / Phase 0.5 firebase uid 충돌 검증 / kidstopia RevenueCat 결정 / linkgo 도메인 결정은 모두 별도 Auth 트랙으로 분리. PRD §7 (EodinAuth 설계) / §8 (Identity API DB+REST) / §9 (통합 Firebase) / §10 (통합 약관) / §11 (6개 앱 마이그 — Auth 의존 부분) / §12 (linkgo NextAuth 전환) / §13 (Auth 보안) 모두 제거 |
 | 2026-05-02 (Phase 1.9 완료) | Capacitor web.ts 동작화 + HIGH 3 finding 처리 + 가이드 2개 (integration / migration) 작성 |
 | 2026-05-02 (Phase 1.6 완료) | EodinEvent enum 4채널 + reference v1.1 발행 + forbidden v1 names 14건 회귀 가드 |

@@ -1,0 +1,161 @@
+# CHECKLIST: `@eodin/web` — Web Analytics SDK 신설
+
+PRD 참고: `./PRD.md`
+관련 메인 PRD: `../PRD.md` (Eodin SDK v2 정비, 4채널)
+
+본 CHECKLIST 는 **`@eodin/web` 패키지 신설 한정** 범위. 채택자 식별 / 적용 계획 / 마이그 가이드는 본 CHECKLIST 의 범위 밖.
+
+---
+
+## 진행 상태 (Last update: 2026-05-03)
+
+| Phase | 상태 | 비고 |
+|---|---|---|
+| Phase 0 (사전 정렬) | ✅ 완료 | 메인 PRD / `web-sdk-targets.md` / 메인 CHECKLIST 정합성 갱신 |
+| Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
+| Phase 2 (Capacitor 어댑터화) | ⏳ 시작 전 | `packages/capacitor/src/web.ts` 가 `@eodin/web` 을 import 하도록 전환 |
+| Phase 3 (Public surface) | ⏳ 시작 전 | EodinAnalytics public API 확정 + 5채널 parity 검증 |
+| Phase 4 (테스트 + 문서) | ⏳ 시작 전 | jest + TypeDoc + integration-guide.md 갱신 |
+| Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag |
+
+### 산출 문서 (예정)
+
+- `web-sdk/PRD.md` ✅
+- `web-sdk/CHECKLIST.md` ✅
+- `web-sdk/extraction-plan.md` (Phase 1 — `capacitor/src/web.ts` 의 어떤 코드를 어디로 옮기는지 매핑)
+- `web-sdk/parity-matrix-5ch.md` (Phase 3 — 5채널 parity 검증 산출)
+
+---
+
+## Phase 0: 사전 정렬
+
+### 0.1 메인 PRD 갱신
+- [x] `docs/PRD.md` §6 의 Web 채널 가정 갱신 — Web 채널 (`@eodin/web`) 의 analytics 모듈은 `web-sdk/PRD.md` 별도 트랙으로 진행. EodinAuth 모듈만 Auth 트랙 의존
+- [x] M1 행 갱신 — Web 별도 트랙 진행 표시
+- [x] 변경 이력에 2026-05-03 항목 추가
+
+### 0.2 `web-sdk-targets.md` 갱신
+- [x] §1 결론 / §3 패키지 설계 영향 / §5 결론을 본 PRD 의 새 scope 와 정합되게 정리 — 채택자 / 1차 출시 대상 같은 다운스트림 결정은 본 트랙 범위 밖임을 명시. 패키지 surface 는 EodinAnalytics 만
+
+### 0.3 메인 CHECKLIST 갱신
+- [x] 진행 상태 표에 "Phase Web (`@eodin/web` 신설)" 행 추가 — 본 CHECKLIST 링크 (`web-sdk/CHECKLIST.md`)
+- [x] §0.10 옆에 본 트랙으로 후속 진행 메모
+
+---
+
+## Phase 1: 패키지 신설 (`packages/sdk-web/`)
+
+### 1.1 디렉토리 + toolchain
+- [ ] `packages/sdk-web/` 디렉토리 생성
+- [ ] `package.json` (name: `@eodin/web`, version: `1.0.0-beta.1`, main/module/types 정의, peer/dev deps)
+- [ ] `tsconfig.json` (target: ES2020, module: ESNext, declaration: true)
+- [ ] `rollup.config.mjs` (cjs + esm + d.ts) — `@eodin/capacitor` 와 동일 구조 차용
+- [ ] `jest.config.js` (jsdom env — browser API 사용)
+- [ ] `typedoc.json` (entryPoints: `src/index.ts` only, internal 제외)
+- [ ] `.gitignore` (dist/, node_modules/)
+- [ ] `README.md` 초안
+
+### 1.2 Internal 모듈 추출 (`packages/capacitor/src/web.ts` source)
+- [ ] `src/internal/event-queue.ts` — localStorage queue (capacitor web.ts 에서 추출)
+- [ ] `src/internal/network-client.ts` — fetch + sendBeacon (capacitor web.ts 에서 추출)
+- [ ] `src/internal/endpoint-validator.ts` — HTTPS only (capacitor web.ts 에서 추출, Phase 1.6 S8 parity)
+- [ ] `src/internal/storage.ts` — localStorage / sessionStorage 추상화 (테스트 용이성)
+- [ ] 각 모듈 jest unit test (capacitor 의 `__tests__/web.test.ts` 에서 분리해 가져옴)
+
+### 1.3 EodinEvent enum (web)
+- [ ] `src/eodin-event.ts` — 4채널과 동일 wire string (Flutter `eodin_event.dart` / iOS `EodinEvent.swift` / Android `EodinEvent.kt` / Capacitor `eodin-event.ts` 와 cross-check)
+- [ ] enum 값 hard-coded test (wire string 변경이 silent 회귀 되지 않도록)
+
+### 1.4 빌드 검증
+- [ ] `npm install`
+- [ ] `npm run build` — dist 산출 정상 (cjs / esm / d.ts)
+- [ ] `npm test` — Phase 1.2 / 1.3 의 unit test 모두 통과
+- [ ] `npm run docs` — TypeDoc 생성, internal 모듈 미노출 확인
+
+---
+
+## Phase 2: Capacitor `web.ts` 어댑터화
+
+### 2.1 의존성 추가
+- [ ] `packages/capacitor/package.json` 의 `dependencies` 에 `@eodin/web: ^1.0.0-beta.1` 추가
+
+### 2.2 web.ts 코드 교체
+- [ ] `packages/capacitor/src/web.ts` 의 EventQueue / NetworkClient / EndpointValidator / EodinEvent 직접 구현 → `@eodin/web` 의 export 사용으로 교체
+- [ ] capacitor 특유 로직 (positional API, native bridge 분기) 만 남기고 web 로직 제거
+- [ ] 라인 수 비교 — 추출 전 vs 후 (목표: -50% 이상)
+
+### 2.3 회귀 검증
+- [ ] `packages/capacitor/src/__tests__/web.test.ts` 모두 통과 (수정 없이)
+- [ ] `packages/capacitor/src/__tests__/eodin-event.test.ts` 통과
+- [ ] `packages/capacitor/src/__tests__/endpoint-validator.test.ts` — 이 파일이 capacitor 에 남아 있을지 `@eodin/web` 으로 옮길지 결정 (권장: `@eodin/web` 으로 이전, capacitor 에서는 import test 만 유지)
+
+---
+
+## Phase 3: Public Surface 확정
+
+### 3.1 EodinAnalytics
+- [ ] `src/analytics/eodin-analytics.ts` — configure / track / identify / clearIdentity / flush
+- [ ] `src/analytics/gdpr.ts` — setHasUserConsent / deleteAllData 등 Phase 1.7 4채널 surface 와 의미 parity
+- [ ] auto-flush — `pagehide` / `visibilitychange` 이벤트에서 sendBeacon
+- [ ] page_view 자동 부착 옵션 — `EodinAnalytics.configure({ autoTrackPageView: true })` (default false — 호스트가 명시적으로 켜기)
+
+### 3.2 Public exports
+- [ ] `src/index.ts` 에서 EodinAnalytics, EodinEvent, 관련 type 만 re-export
+- [ ] internal/* 절대 미노출 확인 (TypeDoc + grep)
+- [ ] `package.json` `exports` 필드 정리
+
+### 3.3 5채널 parity 검증
+- [ ] EodinAnalytics 메서드 시그니처 — Flutter / iOS / Android / Capacitor / Web 5개 비교 표 작성
+- [ ] EodinEvent enum 값 wire string 동일성 — 5채널 모두 grep 으로 비교
+- [ ] GDPR surface — Phase 1.7 4채널 surface 와 parity (web 환경에서 의미 없는 항목은 명시적 no-op + 문서화)
+- [ ] 산출: `web-sdk/parity-matrix-5ch.md`
+
+---
+
+## Phase 4: 테스트 + 문서
+
+### 4.1 Unit test 보강
+- [ ] EodinAnalytics: configure / track / identify / clearIdentity / flush 시나리오
+- [ ] GDPR: consent false → 큐 클리어 검증, deleteAllData → localStorage 클리어 검증
+- [ ] EndpointValidator: HTTPS only enforcement (4채널과 동일 케이스)
+- [ ] EventQueue: idempotent enqueue / at-least-once / bounded growth / cold-start (localStorage 직접 set 후 재시작 시뮬레이션)
+
+### 4.2 Integration test (선택)
+- [ ] `api.eodin.app` mock server 띄우고 e2e — 메인 PRD `Phase 1.7` 의 E2E 보류 정책과 동일하게 본 phase 도 보류 가능
+
+### 4.3 API 문서
+- [ ] `npm run docs` (TypeDoc) — 산출 `docs/api/`
+- [ ] internal/* 미노출 재확인
+- [ ] README.md 완성 — Quick Start, configure, track, GDPR, browser 호환성
+
+### 4.4 Integration guide 갱신
+- [ ] `docs/guide/integration-guide.md` 에 "Web (`@eodin/web`)" 섹션 추가 — 일반 채택 절차만 (특정 호스트 명시 X)
+
+---
+
+## Phase 5: 베타 publish
+
+### 5.1 publish 사전 점검
+- [ ] `package.json` version = `1.0.0-beta.1`
+- [ ] `files` 필드 — dist/, README.md, LICENSE 만 포함
+- [ ] `.npmignore` 또는 `files` 화이트리스트로 src/ 미포함 확인
+- [ ] `npm pack --dry-run` 으로 tarball 내용 검증
+- [ ] `docs/research/security-check.sh` 패턴이 신규 파일에서 모두 통과
+
+### 5.2 publish 실행
+- [ ] `npm publish --access public --tag beta` (사용자 토큰 필요 — manual)
+- [ ] git tag `web-sdk-v1.0.0-beta.1`
+- [ ] origin push
+
+### 5.3 publish 후 검증
+- [ ] `npm view @eodin/web@beta` 로 버전 확인
+- [ ] 별도 sandbox 프로젝트에서 `npm install @eodin/web@beta` → import → configure → track 1회 e2e 확인
+
+---
+
+## 후속 (본 CHECKLIST 범위 밖)
+
+- 채택 / 적용 계획 / 마이그 가이드 — 별도 비즈니스 의사결정
+- EodinAuth 모듈 추가 — Auth 트랙
+- `@eodin/web/server` subpath (Next.js SSR) — Auth 트랙
+- publish CI/CD 자동화 — 메인 PRD `Phase 0.5.6 / Phase 1.2` 와 묶임 (사용자 토큰 대기)

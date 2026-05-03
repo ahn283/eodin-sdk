@@ -3,18 +3,19 @@
 **작성일:** 2026-05-02
 **참조:** PRD §6 (5개 플랫폼 — `@eodin/web` 포함), §7.3 (Web SDK API surface)
 **관련 Phase**: 0.2 (kidstopia web 빌드), 0.3 (linkgo NextAuth)
+**상태 (2026-05-03)**: 본 문서는 Phase 0.10 시점 사용처 후보 조사 결과 그대로 보존. `@eodin/web` 패키지 신설은 별도 트랙 (`../web-sdk/PRD.md`) 으로 진행되며 **본 문서의 채택 결정 / 1차 출시 대상 / 외부 도메인 후보 등 다운스트림 항목은 본 SDK 트랙의 입력으로 사용하지 않음**. 채택 / 적용 계획은 별도 비즈니스 의사결정.
 
 ---
 
-## 1. 결론
+## 1. (Phase 0.10 시점) 사용처 후보 조사 결과
 
-`@eodin/web` (npm) 의 1차 출시 (Phase 1) 채택자: **linkgo 1개 확정**. eodin 자체 monorepo 내 admin/landing 은 **현재 미적용 권장**. 향후 신규 web 서비스 출시 시 채택.
+> **참고**: 아래 결정 표는 Phase 0.10 (Auth 통합 트랙 합본 시점) 의 후보 조사 결과이며, 분리된 `@eodin/web` SDK 트랙 (`../web-sdk/PRD.md`) 의 입력으로 사용되지 않음. 향후 비즈니스 의사결정 시 참고용.
 
-| 대상 | 결정 | 이유 |
+| 대상 | 결정 (Phase 0.10 시점) | 이유 |
 |---|---|---|
-| **linkgo** | ✅ Phase 7 채택 확정 | Phase 0.3 결과 — NextAuth → Firebase + `@eodin/web` 으로 전환 |
+| **linkgo** | ✅ Phase 7 채택 확정 (Auth 트랙) | Phase 0.3 결과 — NextAuth → Firebase + `@eodin/web` 으로 전환 |
 | **eodin/apps/admin** | ❌ 1차 미적용 | 단일 admin 사용자 (env BCRYPT) — 통합 ID 가치 낮음. 향후 multi-admin 화 결정 시 재검토 |
-| **eodin/apps/landing** | ❌ 1차 미적용 (Analytics 부분) | 마케팅 페이지 — 사용자 가입 흐름 없음. GA4 (`gtag`) 이미 사용 중. EodinAnalytics 도입은 통합 attribution 위해 Phase 1.5 검토 |
+| **eodin/apps/landing** | ❌ 1차 미적용 (Analytics 부분) | 마케팅 페이지 — 사용자 가입 흐름 없음. GA4 (`gtag`) 이미 사용 중 |
 | **eodin/apps/web** | ❌ 1차 미적용 | deferred-deeplink 라우터 — 사용자 인증 흐름 없음 |
 | **kidstopia 의 web 빌드 (semag.app)** | ⚠️ `@eodin/capacitor` 의 web.ts 가 처리 (Phase 0.2 → N13 Must) | `@eodin/web` 별도 채택 X. capacitor SDK 의 web fallback 으로 동일 기능 제공 |
 | **향후 신규 web 서비스** | 🔜 채택 의무 | PRD §4 (4번째 목표) 근거 — 회원/약관 인프라 즉시 사용 |
@@ -39,7 +40,8 @@
   - landing 은 마케팅 attribution 의 출발점 (광고 클릭 → eodin.app 도착 → 6개 앱 다운로드 깔때기)
   - 현재 GA4 만 사용 → **eodin attribution 시스템에서 보이지 않음**
   - 도입 시 cross-channel attribution 일관성 향상 (PRD §6.3 conversion API 통합)
-- **결정**: Phase 1.5 검토 — analytics-only 채택 (auth 모듈 미사용). 비용 낮음
+- **결정 (Phase 0.10 시점)**: Phase 1.5 검토 — analytics-only 채택 (auth 모듈 미사용). 비용 낮음
+- **2026-05-03 노트**: 본 항목의 채택 결정은 `@eodin/web` SDK 트랙 (`../web-sdk/PRD.md`) 의 입력 아님. 별도 비즈니스 의사결정 (다운스트림)
 
 ### 2.3 kidstopia 의 web 빌드 (semag.app)
 - Phase 0.2 결과 — Vercel 라이브 운영 (Capacitor build:native vs vite build 분기)
@@ -55,16 +57,15 @@
 
 ---
 
-## 3. `@eodin/web` 패키지 설계 영향
+## 3. `@eodin/web` 패키지 설계 영향 (Phase 0.10 시점 후보 surface)
 
-Phase 1.4 (EodinAuth 모듈 신설) 의 Web SDK 요구사항을 1차 사용자 (linkgo) 기준으로 정의:
+> **참고**: 본 §3 은 Phase 0.10 시점의 후보 surface 정리. `@eodin/web` 패키지 신설은 별도 트랙 (`../web-sdk/PRD.md`) 에서 진행되며, 1차 출시 surface 는 EodinAnalytics 만으로 단순화됨 (해당 PRD §5 참조).
 
-| 모듈 | 1차 요구 | 후속 |
+| 모듈 | 1차 출시 (`@eodin/web` 트랙) | 후속 (Auth 트랙 가동 시) |
 |---|---|---|
-| **EodinAuth** | signIn / signInWithGoogle / signOut / currentUser / idToken / linkApp / acceptTerms / leaveApp / deleteAccount | landing 채택 시 미필요 |
-| **EodinAnalytics** | track / identify / clearIdentity / flush | landing 채택 시 핵심 (page_view, conversion 추적) |
-| **EodinDeeplink** | 미포함 (PRD §6.1 명시) | - |
-| **`@eodin/web/server` subpath** | Next.js SSR 인증 검증 (Firebase Admin SDK) | - |
+| **EodinAnalytics** | ✅ track / identify / clearIdentity / flush / setHasUserConsent / deleteAllData (GDPR Phase 1.7 parity) | linkgo / 신규 web 서비스에서 동일 사용 |
+| **EodinAuth** | ❌ 미포함 — Auth 트랙 의존 | ✅ signIn / signInWithGoogle / signOut / currentUser / idToken / linkApp / acceptTerms / leaveApp / deleteAccount |
+| **`@eodin/web/server` subpath** | ❌ 미포함 — Auth 트랙 의존 (Firebase Admin SDK 필요) | ✅ Next.js SSR 인증 검증 |
 
 ### 3.1 SSR 환경 고려 (linkgo 영향)
 - Next.js App Router 의 server components / route handlers 에서 EodinAuth 사용 시:
@@ -90,9 +91,9 @@ Phase 1.4 (EodinAuth 모듈 신설) 의 Web SDK 요구사항을 1차 사용자 (
 
 ---
 
-## 5. 결론 — Phase 1 입력
+## 5. 결론 — `@eodin/web` 트랙으로 후속
 
-`@eodin/web` Phase 1 의 출시 대상은 **linkgo 1개**. PRD §6 의 "5채널 동시 publish" 는 그대로 유지하되, 사용처 측면에서는 1차 출시 후 점진 확대.
+본 문서의 채택 결정 / 1차 출시 대상은 **`@eodin/web` SDK 트랙의 입력으로 사용되지 않는다**. SDK 패키지 신설 자체는 `../web-sdk/PRD.md` 에서 다루며, 채택 / 적용 계획은 별도 비즈니스 의사결정.
 
-- **즉시 출시 필수 모듈**: EodinAuth (full surface) + EodinAnalytics (track / identify)
-- **출시 후 검토**: landing analytics-only 채택, admin EodinAuth 채택, 신규 web 서비스 채택
+- **`@eodin/web` 1차 출시 surface**: EodinAnalytics 만 (track / identify / GDPR) — 자세한 내용은 `../web-sdk/PRD.md` §5
+- **EodinAuth 모듈 추가**: Auth 트랙 가동 시점
