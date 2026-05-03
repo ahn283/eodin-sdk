@@ -15,7 +15,7 @@ PRD 참고: `./PRD.md`
 | Phase 1.0 (workspace 도입) | ✅ 완료 | root `package.json` 신설, capacitor 빌드/테스트 64/64 통과, code review Grade A |
 | Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
 | Phase 2 (Capacitor 어댑터화) | ✅ 완료 | web.ts 729→525 lines (-28%). sdk-web `/internal` subpath. capacitor rollup external + IIFE globals. H1/H2/H3 모두 closure |
-| Phase 3 (Public surface) | ⏳ 시작 전 | EodinAnalytics public API 확정 + 5채널 parity 검증 |
+| Phase 3 (Public surface) | ✅ 완료 | EodinAnalytics 본체 + GDPR + autoTrackPageView + globalThis pin (H1) + parity matrix 산출. 7 suites / 80 tests |
 | Phase 4 (테스트 + 문서) | ⏳ 시작 전 | jest + TypeDoc + integration-guide.md 갱신 |
 | Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag + kidstopia vendor tgz 사전 회귀 검증 (G1) |
 
@@ -139,39 +139,52 @@ PRD 참고: `./PRD.md`
 
 ## Phase 3: Public Surface 확정
 
-### 3.0 dual-package hazard 결정 (Phase 1.1 review H1) — Phase 3 코드 작성 전 필수
-- [ ] EodinAnalytics 가 stateful singleton 일 예정 → 현 dual `exports` (cjs/esm) 가 모듈 인스턴스 분리 위험. 다음 중 택1 결정 + 결정 로그 기록:
-  - (a) ESM-only 전환 — `package.json` 에 `"type": "module"`, `exports.require` 제거, `main` 제거 (추천)
-  - (b) state 를 `globalThis.__eodinAnalytics__` 에 pin
-  - (c) stateless façade + global store 분리 설계
-- [ ] 결정 후 `package.json` 적용 + 본 CHECKLIST 갱신
+### 3.0 dual-package hazard 결정 (Phase 1.1 review H1) ✅
+- [x] **택 (b) globalThis pin** — capacitor (CJS publish) 가 `@eodin/web/internal` 을 require 해야 해서 root entry 의 ESM-only 전환 무리. 대신 state / queue / pageViewDetach 를 모두 `globalThis.__eodin_analytics_state__` 에 pin (Phase 3 review H1 fix 포함)
+- [x] `packages/sdk-web/src/analytics/state.ts` — `getState()` / `getQueue()` / `__resetStateForTest()` API
 
-### 3.1 EodinAnalytics (PRD §5 의 모든 surface)
-- [ ] `src/analytics/eodin-analytics.ts` — configure / track (positional) / identify / clearIdentity / flush
-- [ ] **Attribution + Sessions**: setAttribution / startSession / endSession
-- [ ] **Status getters — TypeScript property style (M6)**: `EodinAnalytics.deviceId / userId / sessionId / attribution / isEnabled` 모두 `static get` 정의. caller 측 `EodinAnalytics.deviceId` 형태로 access. Flutter / iOS property 와 시각적 정합
-- [ ] **Aggregate `getStatus()`**: 유일하게 method form. Promise / 동기 반환은 Phase 3 에서 결정 (capacitor 와의 호환성 고려)
-- [ ] **GDPR (4채널 실제 메서드명)**: setEnabled / isEnabled / requestDataDeletion (Phase 1.7 surface 와 동일)
-- [ ] auto-flush — `pagehide` / `visibilitychange` 이벤트에서 sendBeacon
-- [ ] **autoTrackPageView (PRD §5 명시)**: `EodinAnalytics.configure({ autoTrackPageView: true })` 시 internal page-view tracker 가 history API + popstate 구독. default false
-- [ ] **iOS-only ATT 메서드 의도적 미노출**: requestTrackingAuthorization / getATTStatus / setDeviceATT 는 web surface 에서 제외 (5채널 documented asymmetry — `parity-matrix-5ch.md` 에 기록)
+### 3.1 EodinAnalytics (PRD §5 의 모든 surface) ✅
+- [x] `src/analytics/eodin-analytics.ts` — configure (Promise<void>) / track (Promise<void>, positional) / identify / clearIdentity / flush
+- [x] **Attribution + Sessions**: setAttribution / startSession / endSession
+- [x] **Status getters — TypeScript property style (M6)**: `EodinAnalytics.deviceId / userId / sessionId / attribution / isEnabled` 모두 `static get` 정의
+- [x] **Aggregate `getStatus()`**: 유일하게 method form (Promise<AnalyticsStatus>) — capacitor 와 호환
+- [x] **GDPR (4채널 실제 메서드명)**: setEnabled (Promise<void>) / isEnabled (getter) / requestDataDeletion (Phase 1.7 surface parity)
+- [x] auto-flush — `pagehide` / `visibilitychange` 이벤트에서 sendBeacon
+- [x] **autoTrackPageView (PRD §5 명시)**: `configure({ autoTrackPageView: true })` 시 page-view-tracker 가 history API + popstate 구독. default false. SPA 라우터 충돌 가드 (H3)
+- [x] **iOS-only ATT 메서드 의도적 미노출**: requestTrackingAuthorization / getATTStatus / setDeviceATT 제외 (parity-matrix-5ch.md asymmetry 표 기록)
+- [x] **C1 hydration fix**: configure 가 localStorage 의 attribution 을 in-memory hydrate (cold-reload 후 `EodinAnalytics.attribution` getter 정합)
+- [x] **H2 awaitable parity**: track / setEnabled 가 `Promise<void>` 반환 — 4채널 SDK 와 awaitable parity
+- [x] **H4 internal API 격리**: dispose → `__disposeForTest`, parity matrix 8.1 행 추가
 
 ### 3.2 Public exports
 - [ ] `src/index.ts` 에서 EodinAnalytics, EodinEvent, 관련 type 만 re-export
 - [ ] internal/* 절대 미노출 확인 (TypeDoc + grep)
 - [ ] `package.json` `exports` 필드 정리
 
-### 3.3 5채널 parity 검증
-- [ ] EodinAnalytics 메서드 시그니처 — Flutter / iOS / Android / Capacitor / Web 5개 비교 표 작성
-- [ ] EodinEvent enum 값 wire string 동일성 — 5채널 모두 grep 으로 비교
-- [ ] GDPR surface — Phase 1.7 4채널 surface 와 parity (web 환경에서 의미 없는 항목은 명시적 no-op + 문서화)
-- [ ] **Documented asymmetry 명시** (PRD §5.1 표 + 본 트랙 결정):
-  - ATT 메서드 (iOS-only) — web 의도적 미노출
-  - autoTrackPageView (web 고유)
-  - status getter property vs method (Flutter/iOS/Web property — Android method form, Kotlin/Java interop 관습)
-  - Capacitor 의 분산 getter 누락 (M5 — 별도 ticket)
-  - aggregate `getStatus()` vs 분산 getter 매핑 (M7 — 양쪽 모두 의미 있어 본 SDK 는 둘 다 노출, 4채널은 분산만 / capacitor 는 aggregate 만)
-- [ ] 산출: `web-sdk/parity-matrix-5ch.md`
+### 3.2 Public exports ✅
+- [x] `src/index.ts` 에서 EodinAnalytics / Attribution / AnalyticsStatus / AnalyticsConfigureOptions / EodinEvent / EodinEventName re-export
+- [x] internal/* 미노출 — typedoc + package.json `exports` 양쪽에서 차단
+
+### 3.3 5채널 parity 검증 ✅
+- [x] EodinAnalytics 메서드 시그니처 — Flutter / iOS / Android / Capacitor / Web 5개 비교 (parity-matrix-5ch §1)
+- [x] Status getter property vs method (parity-matrix-5ch §2) — Android method form (Kotlin interop) / capacitor 분산 getter 누락 (M5 별도 ticket)
+- [x] GDPR surface (Phase 1.7 4채널 parity) — parity-matrix-5ch §3
+- [x] iOS-only ATT 의도적 비대칭 — parity-matrix-5ch §4
+- [x] Web 고유 (autoTrackPageView / PageView) — parity-matrix-5ch §5
+- [x] EodinEvent wire string parity — 38 entries 5채널 byte-exact + invariant gates (Phase 1.3)
+- [x] Wire schema (`events/collect`) parity — parity-matrix-5ch §7. attributionToWire byte-exact (web ↔ capacitor grep 검증)
+- [x] dispose / `__disposeForTest` 명시 (H4) — parity-matrix-5ch §8.1
+- [x] 산출: `web-sdk/parity-matrix-5ch.md`
+
+### 3.4 코드 리뷰 ✅
+- [x] senior-code-reviewer Grade B+. CRITICAL 1 / HIGH 4 / MEDIUM 6 / LOW 4 / INFO 3
+  - **C1 즉시 적용**: configure 가 attribution localStorage hydrate — cold-reload 후 getter 정합
+  - **H1 즉시 적용**: globalThis pin 범위 확장 — queue / pageViewDetach 도 state 슬롯에 pin
+  - **H2 즉시 적용**: track / setEnabled 가 Promise<void> 반환 — 4채널 awaitable parity
+  - **H3 즉시 적용**: page-view-tracker 의 detach 가 patched 함수 검증 후 원복 — SPA 라우터 충돌 차단
+  - **H4 즉시 적용**: dispose → `__disposeForTest` (internal 의도 표시), parity matrix 8.1 행 추가
+  - 후속 (M1-M6, L1-L4): Phase 4 / 별도 ticket
+- [x] 산출: `web-sdk/reviews/phase-3-code-review.md`
 
 ---
 
