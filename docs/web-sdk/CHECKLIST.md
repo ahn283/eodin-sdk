@@ -1,9 +1,9 @@
-# CHECKLIST: `@eodin/web` — Web Analytics SDK 신설
+# CHECKLIST: `eodin-web` — Web Analytics SDK 신설
 
 PRD 참고: `./PRD.md`
 관련 메인 PRD: `../PRD.md` (Eodin SDK v2 정비, 4채널)
 
-본 CHECKLIST 는 **`@eodin/web` 패키지 신설 한정** 범위. 채택자 식별 / 적용 계획 / 마이그 가이드는 본 CHECKLIST 의 범위 밖.
+본 CHECKLIST 는 **`eodin-web` 패키지 신설 한정** 범위. 채택자 식별 / 적용 계획 / 마이그 가이드는 본 CHECKLIST 의 범위 밖.
 
 ---
 
@@ -31,7 +31,7 @@ PRD 참고: `./PRD.md`
 ## Phase 0: 사전 정렬
 
 ### 0.1 메인 PRD 갱신
-- [x] `docs/PRD.md` §6 의 Web 채널 가정 갱신 — Web 채널 (`@eodin/web`) 의 analytics 모듈은 `web-sdk/PRD.md` 별도 트랙으로 진행. EodinAuth 모듈만 Auth 트랙 의존
+- [x] `docs/PRD.md` §6 의 Web 채널 가정 갱신 — Web 채널 (`eodin-web`) 의 analytics 모듈은 `web-sdk/PRD.md` 별도 트랙으로 진행. EodinAuth 모듈만 Auth 트랙 의존
 - [x] M1 행 갱신 — Web 별도 트랙 진행 표시
 - [x] 변경 이력에 2026-05-03 항목 추가
 
@@ -39,7 +39,7 @@ PRD 참고: `./PRD.md`
 - [x] §1 결론 / §3 패키지 설계 영향 / §5 결론을 본 PRD 의 새 scope 와 정합되게 정리 — 채택자 / 1차 출시 대상 같은 다운스트림 결정은 본 트랙 범위 밖임을 명시. 패키지 surface 는 EodinAnalytics 만
 
 ### 0.3 메인 CHECKLIST 갱신
-- [x] 진행 상태 표에 "Phase Web (`@eodin/web` 신설)" 행 추가 — 본 CHECKLIST 링크 (`web-sdk/CHECKLIST.md`)
+- [x] 진행 상태 표에 "Phase Web (`eodin-web` 신설)" 행 추가 — 본 CHECKLIST 링크 (`web-sdk/CHECKLIST.md`)
 - [x] §0.10 옆에 본 트랙으로 후속 진행 메모
 
 ---
@@ -73,7 +73,7 @@ PRD 참고: `./PRD.md`
 - [x] **(M1 — Phase 1.0 review 권고) root `package.json` 의 `workspaces` 배열에 `packages/sdk-web` 추가**
 - [x] **(L1 — Phase 1.0 review 권고) root `package-lock.json` commit 정책 결정** — root .gitignore 의 `package-lock.json` 줄을 `packages/*/package-lock.json` 으로 교체. root lock 은 commit 함
 - [x] `packages/sdk-web/` 디렉토리 생성 + `src/index.ts` placeholder
-- [x] `package.json` — name `@eodin/web`, version `1.0.0-beta.1`, dual export (cjs+esm), files allowlist
+- [x] `package.json` — name `eodin-web`, version `1.0.0-beta.1`, dual export (cjs+esm), files allowlist
 - [x] `tsconfig.json` — strict, lib: dom/es2020, target es2017
 - [x] `rollup.config.mjs` — esm input → cjs output (capacitor 와 달리 IIFE / external peer 없음)
 - [x] `jest.config.js` — testEnvironment: jsdom
@@ -116,12 +116,12 @@ PRD 참고: `./PRD.md`
 
 ### 2.1 의존성 추가 ✅
 - [x] sdk-web 에 `./internal` subpath export 추가 (`packages/sdk-web/src/internal/index.ts` barrel + `package.json` exports + dual-entry rollup)
-- [x] `packages/capacitor/package.json` 의 `dependencies` 에 `"@eodin/web": "^1.0.0-beta.1"` 추가 (npm 은 `workspace:*` 미지원 — explicit version range 사용. workspace symlink 으로 dev 시 자동 해결, publish 시 그대로 유지)
+- [x] `packages/capacitor/package.json` 의 `dependencies` 에 `"eodin-web": "^1.0.0-beta.1"` 추가 (npm 은 `workspace:*` 미지원 — explicit version range 사용. workspace symlink 으로 dev 시 자동 해결, publish 시 그대로 유지)
 - [x] `packages/capacitor/tsconfig.json` 의 `moduleResolution` `"node"` → `"bundler"` (TS 가 `exports` field subpath 인식)
-- [x] root `npm install` 재실행으로 `node_modules/@eodin/web` symlink 생성 확인
+- [x] root `npm install` 재실행으로 `node_modules/eodin-web` symlink 생성 확인
 
 ### 2.2 web.ts 코드 교체 ✅
-- [x] `packages/capacitor/src/web.ts` 의 STORAGE_KEYS / validateEndpoint / uuid / EventQueue / fetchWithTimeout / sendBeacon / isQuotaError → `@eodin/web/internal` import 로 교체
+- [x] `packages/capacitor/src/web.ts` 의 STORAGE_KEYS / validateEndpoint / uuid / EventQueue / fetchWithTimeout / sendBeacon / isQuotaError → `eodin-web/internal` import 로 교체
 - [x] capacitor 특유 로직 유지: WebPlugin extension / lifecycle listeners / GDPR 메서드 / attributionToWire / sendBeacon flushOnExit / capacitor-specific constants
 - [x] 라인 수: 729 → 525 (-204 lines, **-28%**)
 
@@ -131,7 +131,7 @@ PRD 참고: `./PRD.md`
 - [x] 코드 리뷰: senior-code-reviewer Grade B+. CRITICAL 0 / **HIGH 3** / MEDIUM 4 / LOW 3 / INFO 3.
   - **H1 즉시 적용**: requeueBatch prepend 와 EventQueue.withLock universal trim 의 충돌 해결 — withLock 의 auto-trim 제거, track callsite 명시 trim 복귀
   - **H2 즉시 적용**: EventQueue 에 `onQuotaExceeded` 콜백 추가 — capacitor 가 logger 주입해 quota drop 관측성 복원
-  - **H3 즉시 적용**: capacitor rollup `external` 에 `'@eodin/web'` / `'@eodin/web/internal'` 추가 + IIFE globals 매핑. publish artifact 에 EventQueue 인라인 안 됨 (`grep -c "class EventQueue" dist/plugin.cjs.js` = 0). dependencies 와 artifact 동작 일치
+  - **H3 즉시 적용**: capacitor rollup `external` 에 `'eodin-web'` / `'eodin-web/internal'` 추가 + IIFE globals 매핑. publish artifact 에 EventQueue 인라인 안 됨 (`grep -c "class EventQueue" dist/plugin.cjs.js` = 0). dependencies 와 artifact 동작 일치
   - 후속 (M1-M4 / L1-L3): Phase 3 또는 별도 ticket
 - [x] 산출: `web-sdk/reviews/phase-2-code-review.md`
 
@@ -140,7 +140,7 @@ PRD 참고: `./PRD.md`
 ## Phase 3: Public Surface 확정
 
 ### 3.0 dual-package hazard 결정 (Phase 1.1 review H1) ✅
-- [x] **택 (b) globalThis pin** — capacitor (CJS publish) 가 `@eodin/web/internal` 을 require 해야 해서 root entry 의 ESM-only 전환 무리. 대신 state / queue / pageViewDetach 를 모두 `globalThis.__eodin_analytics_state__` 에 pin (Phase 3 review H1 fix 포함)
+- [x] **택 (b) globalThis pin** — capacitor (CJS publish) 가 `eodin-web/internal` 을 require 해야 해서 root entry 의 ESM-only 전환 무리. 대신 state / queue / pageViewDetach 를 모두 `globalThis.__eodin_analytics_state__` 에 pin (Phase 3 review H1 fix 포함)
 - [x] `packages/sdk-web/src/analytics/state.ts` — `getState()` / `getQueue()` / `__resetStateForTest()` API
 
 ### 3.1 EodinAnalytics (PRD §5 의 모든 surface) ✅
@@ -203,10 +203,10 @@ PRD 참고: `./PRD.md`
 - [ ] `api.eodin.app` mock server 띄우고 e2e — 메인 PRD `Phase 1.7` 의 E2E 보류 정책과 동일하게 본 phase 도 보류 가능
 
 ### 4.3 API 문서 ✅
-- [x] `npm -w @eodin/web run docs` (TypeDoc) — 산출 `packages/sdk-web/docs/api/`
+- [x] `npm -w eodin-web run docs` (TypeDoc) — 산출 `packages/sdk-web/docs/api/`
 - [x] internal/* 미노출 확인 — `EventQueue / validateEndpoint / fetchWithTimeout / sendBeacon` 모두 docs/api 0 hit
 - [x] `packages/sdk-web/README.md` 갱신 — Phase 1.1 placeholder 제거, full surface 예시 + 의도적 비대칭 (ATT / Deeplink) 명시
-- [x] root `README.md` 의 Packages 표에 `@eodin/web` 행 추가 + Quick Start Web 섹션 추가
+- [x] root `README.md` 의 Packages 표에 `eodin-web` 행 추가 + Quick Start Web 섹션 추가
 
 ### 4.4 Integration guide 갱신 ✅
 - [x] `docs/guide/integration-guide.md` §3.5 Web 섹션 갱신 — 의존성 / 초기화 / positional API 사용 / SSR Next.js / 의도적 미노출
@@ -218,7 +218,7 @@ PRD 참고: `./PRD.md`
   - **C1 즉시 적용**: page-view-tracker.test.ts:64 의 `as never` 캐스팅 → `typeof history.pushState` 정합. 신규 8 tests 실제 실행 (TS2339 컴파일 에러 해소)
   - **H1 즉시 적용**: integration-guide §6.1 / §6.2 의 Capacitor / Web 묶음 분리 (async vs property getter 모순 해소)
   - **H2 즉시 적용**: `packages/sdk-web/README.md` Phase 1.1 placeholder 제거 + full surface 명시
-  - **H3 즉시 적용**: root `README.md` 5채널 표에 `@eodin/web` 행 추가 + Quick Start
+  - **H3 즉시 적용**: root `README.md` 5채널 표에 `eodin-web` 행 추가 + Quick Start
 - [x] 산출: `web-sdk/reviews/phase-4-code-review.md`
 
 ---
@@ -229,7 +229,7 @@ PRD 참고: `./PRD.md`
 - [x] `package.json` version = `1.0.0-beta.1`
 - [x] `files` 필드 — `dist/, README.md, LICENSE` allowlist
 - [x] src/ tests/ 미포함 검증 — `npm pack --dry-run` 결과: 55 files / 55.2 kB / 205.9 kB unpacked. LICENSE 1.1 kB + README 2.5 kB + dist/cjs + dist/esm + package.json 만
-- [x] `docs/research/security-check.sh` 통과 — secret 패턴 0건. capacitor → `@eodin/web` 의존성은 intra-monorepo expected
+- [x] `docs/research/security-check.sh` 통과 — secret 패턴 0건. capacitor → `eodin-web` 의존성은 intra-monorepo expected
 - [x] 최종 빌드 + 테스트: sdk-web 8 suites / 88 tests / capacitor 4 suites / 64 tests 회귀 0
 - [x] 코드 리뷰: senior-code-reviewer Phase 5.1 sub-task 는 빌드 config 검증이라 별도 review 안 함 (Phase 4 review 에 포함)
 
@@ -239,11 +239,11 @@ PRD 참고: `./PRD.md`
 - [ ] origin push
 
 ### 5.3 publish 후 검증
-- [ ] `npm view @eodin/web@beta` 로 버전 확인
-- [ ] 별도 sandbox 프로젝트에서 `npm install @eodin/web@beta` → import → configure → track 1회 e2e 확인
+- [ ] `npm view eodin-web@beta` 로 버전 확인
+- [ ] 별도 sandbox 프로젝트에서 `npm install eodin-web@beta` → import → configure → track 1회 e2e 확인
 
 ### 5.4 kidstopia vendor tgz 사전 회귀 검증 (G1 — 라이브 회귀 가드)
-- [ ] `@eodin/web` publish 완료 후 `@eodin/capacitor` 도 patch 빌드 (workspace:* → actual version range 자동 치환 확인)
+- [ ] `eodin-web` publish 완료 후 `@eodin/capacitor` 도 patch 빌드 (workspace:* → actual version range 자동 치환 확인)
 - [ ] `npm pack @eodin/capacitor` → vendor tgz 산출
 - [ ] kidstopia 로컬 환경에서 기존 vendor tgz 를 신규 tgz 로 교체
 - [ ] kidstopia 로컬 빌드 (`npx cap sync` + `npm run build`) 정상
@@ -256,11 +256,11 @@ PRD 참고: `./PRD.md`
 
 - 채택 / 적용 계획 / 마이그 가이드 — 별도 비즈니스 의사결정
 - EodinAuth 모듈 추가 — Auth 트랙
-- `@eodin/web/server` subpath (Next.js SSR) — Auth 트랙
+- `eodin-web/server` subpath (Next.js SSR) — Auth 트랙
 - publish CI/CD 자동화 — 메인 PRD `Phase 0.5.6 / Phase 1.2` 와 묶임 (사용자 토큰 대기)
-- **C3 — backend `apiKeyAuth` origin allowlist 강화** — `@eodin/web` 채택 시점 전까지 `apps/api/src/...` 의 apiKeyAuth 미들웨어가 `Origin` / `Referer` 검증을 추가해야 함. 별도 ticket 으로 등록 (본 SDK 트랙 외)
+- **C3 — backend `apiKeyAuth` origin allowlist 강화** — `eodin-web` 채택 시점 전까지 `apps/api/src/...` 의 apiKeyAuth 미들웨어가 `Origin` / `Referer` 검증을 추가해야 함. 별도 ticket 으로 등록 (본 SDK 트랙 외)
 - **M5 — Capacitor 분산 getter 보강** — `packages/capacitor/src/definitions.ts` 에 `getDeviceId / getUserId / getSessionId / getAttribution` 추가 + native bridge 구현. 4채널 status getter parity 회복. 본 SDK 트랙 외 별도 ticket
-- F1 — `apps/web` (link.eodin.app) 이 `@eodin/web` 채택 시 server-side `/events/click` + client-side `/events/collect` 이중 logging 정의 필요. 채택 트랙에서 다룸
+- F1 — `apps/web` (link.eodin.app) 이 `eodin-web` 채택 시 server-side `/events/click` + client-side `/events/collect` 이중 logging 정의 필요. 채택 트랙에서 다룸
 - **(Phase 1.1 review M2) Phase 5 publish 시점에 `prepublishOnly` 제거 + CI artifact publish 패턴 검토** — `changesets` / `release-please` 도입 시점과 묶임
 - **(Phase 1.1 review L3) Phase 5 publish 시점에 keywords 보강** — `event-tracking`, `telemetry`, `browser`, `typescript` 추가 검토
 - **(Phase 1.1 review I3) IIFE / unpkg use-case 가 생기면 rollup output 추가** — 현재는 npm install 경유 사용만 가정

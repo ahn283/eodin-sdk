@@ -10,7 +10,7 @@
 
 ## 0. 본 가이드의 범위
 
-본 가이드는 **기존 4채널 SDK (Flutter / iOS / Android / Capacitor) 의 v1 → v2 마이그**를 다룬다. 5번째 채널 **`@eodin/web`** 은 v2 시점에 **신생 패키지**라 마이그 대상 아님 (이전 버전이 없음). 새로운 web 호스트가 채택할 때는 [`integration-guide.md` §3.5](./integration-guide.md#35-web-eodinweb) 참조.
+본 가이드는 **기존 4채널 SDK (Flutter / iOS / Android / Capacitor) 의 v1 → v2 마이그**를 다룬다. 5번째 채널 **`eodin-web`** 은 v2 시점에 **신생 패키지**라 마이그 대상 아님 (이전 버전이 없음). 새로운 web 호스트가 채택할 때는 [`integration-guide.md` §3.5](./integration-guide.md#35-web-eodinweb) 참조.
 
 ---
 
@@ -304,11 +304,11 @@ rm /path/to/kidstopia/vendor/eodin-capacitor-1.0.0.tgz
 }
 ```
 
-### 5.1.1 ⚠️ `@eodin/web` 동시 설치 (Phase 2 어댑터화 후 필수)
+### 5.1.1 ⚠️ `eodin-web` 동시 설치 (Phase 2 어댑터화 후 필수)
 
-Phase 2 (web-sdk 트랙) 부터 `@eodin/capacitor` 의 web fallback 이 `@eodin/web/internal` 을 import 한다. capacitor `package.json` 의 `dependencies` 에 `"@eodin/web": "^1.0.0-beta.1"` 가 등록되어 있어 **`@eodin/web` 이 npm 에 publish 된 상태에서는 자동 설치**.
+Phase 2 (web-sdk 트랙) 부터 `@eodin/capacitor` 의 web fallback 이 `eodin-web/internal` 을 import 한다. capacitor `package.json` 의 `dependencies` 에 `"eodin-web": "^1.0.0-beta.1"` 가 등록되어 있어 **`eodin-web` 이 npm 에 publish 된 상태에서는 자동 설치**.
 
-**publish 전 (현재 시점) — vendor tgz 사용**: `@eodin/web` 도 별도 vendor 필요:
+**publish 전 (현재 시점) — vendor tgz 사용**: `eodin-web` 도 별도 vendor 필요:
 
 ```bash
 cd /path/to/eodin-sdk/packages/sdk-web
@@ -325,12 +325,12 @@ cp eodin-web-1.0.0-beta.1.tgz /path/to/kidstopia/vendor/
 {
   "dependencies": {
     "@eodin/capacitor": "file:vendor/eodin-capacitor-2.0.0-beta.1.tgz",
-    "@eodin/web": "file:vendor/eodin-web-1.0.0-beta.1.tgz"
+    "eodin-web": "file:vendor/eodin-web-1.0.0-beta.1.tgz"
   }
 }
 ```
 
-**publish 후**: `@eodin/web` 이 npm 에 있으면 capacitor 의 `^1.0.0-beta.1` 가 자동 해결 → kidstopia 측 `package.json` 에 `@eodin/web` 명시 불필요 (`@eodin/capacitor` 만 있으면 transitive dep 으로 따라옴).
+**publish 후**: `eodin-web` 이 npm 에 있으면 capacitor 의 `^1.0.0-beta.1` 가 자동 해결 → kidstopia 측 `package.json` 에 `eodin-web` 명시 불필요 (`@eodin/capacitor` 만 있으면 transitive dep 으로 따라옴).
 
 ### 5.2 Positional API 호출 변경 (BREAKING)
 

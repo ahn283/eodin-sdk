@@ -132,7 +132,7 @@ async function requeueBatch(batch: QueuedEvent[]): Promise<void> {
  *
  * @example
  * ```ts
- * import { EodinAnalytics, EodinEvent } from '@eodin/web';
+ * import { EodinAnalytics, EodinEvent } from 'eodin-web';
  *
  * await EodinAnalytics.configure({
  *   apiEndpoint: 'https://api.eodin.app/api/v1',

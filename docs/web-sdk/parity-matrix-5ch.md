@@ -97,7 +97,7 @@ cross-channel 검증:
 | iOS | `EodinSDK` (products: `EodinAnalytics`, `EodinDeeplink`) | SwiftPM | `import EodinAnalytics` |
 | Android | `app.eodin:sdk` | Maven Central | `import app.eodin.analytics.*` |
 | Capacitor | `@eodin/capacitor` | npm | `import { EodinAnalytics } from '@eodin/capacitor'` |
-| Web | `@eodin/web` | npm | `import { EodinAnalytics } from '@eodin/web'` (root) / `@eodin/web/internal` (first-party 전용) |
+| Web | `eodin-web` | npm | `import { EodinAnalytics } from 'eodin-web'` (root) / `eodin-web/internal` (first-party 전용) |
 
 ## 8.1 Test-only / internal API
 

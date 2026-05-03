@@ -15,7 +15,7 @@ PRD 참고: `./PRD.md` (2026-05-02 재정리 — Auth 트랙 분리)
 | Phase 0.9 + 0.9.1 (Service catalog) | ✅ 완료 | schema/seed/web 라우터 가드 — LegalService 인프라는 Auth 트랙에서 활용 예정 |
 | **Phase 1 (SDK 정비)** | 🚧 진행 중 (8/9) | 1.1 ✅ / 1.3 ✅ / 1.6 (S9) ✅ / 1.9 ✅ / 1.6 (S8) ✅ / 1.7 (GDPR) ✅ / 1.8 (문서) ✅ 완료. 다음: 1.10 (베타 릴리스) |
 | Phase 5 (5개 앱 마이그) | 🚧 가이드 완료, 실제 마이그 대기 | `migration-guide.md` 산출. Phase 1.10 후 시작 |
-| **Phase Web (`@eodin/web` 신설)** | 🚧 별도 트랙 진행 중 (Phase 0 진행) | 순수 web 로깅 SDK (analytics only). 채택 / 적용 계획은 본 트랙 범위 밖. PRD: `web-sdk/PRD.md` / CHECKLIST: `web-sdk/CHECKLIST.md` |
+| **Phase Web (`eodin-web` 신설)** | 🚧 별도 트랙 진행 중 (Phase 0 진행) | 순수 web 로깅 SDK (analytics only). 채택 / 적용 계획은 본 트랙 범위 밖. PRD: `web-sdk/PRD.md` / CHECKLIST: `web-sdk/CHECKLIST.md` |
 
 ### Phase 0 산출 문서
 
@@ -72,7 +72,7 @@ PRD 참고: `./PRD.md` (2026-05-02 재정리 — Auth 트랙 분리)
 ### 0.10 Web SDK 사용처 식별 ✅
 - [x] linkgo Auth 트랙 의존 / admin·landing 1차 미적용 / kidstopia 는 `@eodin/capacitor` web 분기 사용
 - [x] 결과 문서: `web-sdk-targets.md`
-- **2026-05-03 후속**: `@eodin/web` SDK 패키지 신설은 별도 트랙 (`web-sdk/PRD.md`) 으로 진행 — analytics 만, Auth 미포함. 본 §0.10 의 채택자 / 1차 출시 대상 같은 다운스트림 결정은 SDK 트랙의 입력 아님 (별도 비즈니스 의사결정)
+- **2026-05-03 후속**: `eodin-web` SDK 패키지 신설은 별도 트랙 (`web-sdk/PRD.md`) 으로 진행 — analytics 만, Auth 미포함. 본 §0.10 의 채택자 / 1차 출시 대상 같은 다운스트림 결정은 SDK 트랙의 입력 아님 (별도 비즈니스 의사결정)
 
 ---
 

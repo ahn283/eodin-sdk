@@ -10,7 +10,7 @@ import {
   uuid,
   validateEndpoint,
   writeStorage,
-} from '@eodin/web/internal';
+} from 'eodin-web/internal';
 
 import type {
   EodinDeeplinkPlugin,
@@ -25,7 +25,7 @@ import type {
 } from './definitions';
 
 // `validateEndpoint` 는 capacitor 의 외부 import 점이기도 했으므로 재export 유지
-// (back-compat). Phase 2 어댑터화로 본체는 `@eodin/web/internal` 에 있음.
+// (back-compat). Phase 2 어댑터화로 본체는 `eodin-web/internal` 에 있음.
 export { validateEndpoint };
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ function attributionToWire(
  * cross-platform code paths stay simple.
  *
  * Phase 2 (web-sdk track): EventQueue / NetworkClient / EndpointValidator /
- * uuid / STORAGE_KEYS 는 `@eodin/web/internal` 에서 import. 본 클래스는
+ * uuid / STORAGE_KEYS 는 `eodin-web/internal` 에서 import. 본 클래스는
  * Capacitor plugin surface (positional API + native bridge 연동) + lifecycle
  * listener + sendBeacon flushOnExit + GDPR 본체 만 담당.
  */
@@ -502,7 +502,7 @@ export class EodinAnalyticsWeb
 
   /**
    * H3: best-effort flush as the page is hidden / unloading. Uses
-   * `navigator.sendBeacon` (via `@eodin/web/internal`) so the request
+   * `navigator.sendBeacon` (via `eodin-web/internal`) so the request
    * survives unload (regular fetch is cancelled).
    */
   private flushOnExit(): void {

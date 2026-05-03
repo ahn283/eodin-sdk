@@ -1,4 +1,4 @@
-# @eodin/web
+# eodin-web
 
 Eodin SDK for Web — pure analytics SDK (5번째 채널, 4채널 mobile SDK 와 의미 parity).
 
@@ -7,13 +7,13 @@ Eodin SDK for Web — pure analytics SDK (5번째 채널, 4채널 mobile SDK 와
 ## 설치
 
 ```bash
-npm install @eodin/web
+npm install eodin-web
 ```
 
 ## 빠른 시작
 
 ```typescript
-import { EodinAnalytics, EodinEvent } from '@eodin/web';
+import { EodinAnalytics, EodinEvent } from 'eodin-web';
 
 await EodinAnalytics.configure({
   apiEndpoint: 'https://api.eodin.app/api/v1',
@@ -66,9 +66,9 @@ PRD: [`docs/web-sdk/PRD.md`](../../docs/web-sdk/PRD.md).
 
 ```bash
 # monorepo root 에서
-npm -w @eodin/web run build
-npm -w @eodin/web test
-npm -w @eodin/web run docs   # TypeDoc API reference
+npm -w eodin-web run build
+npm -w eodin-web test
+npm -w eodin-web run docs   # TypeDoc API reference
 ```
 
 ## 라이선스

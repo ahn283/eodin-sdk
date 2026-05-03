@@ -2,7 +2,7 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": ["src/index.ts"],
   "out": "docs/api",
-  "name": "@eodin/web",
+  "name": "eodin-web",
   "readme": "README.md",
   "excludePrivate": true,
   "excludeProtected": true,

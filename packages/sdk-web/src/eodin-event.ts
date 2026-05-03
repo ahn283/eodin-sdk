@@ -11,7 +11,7 @@
  *
  * @example
  * ```ts
- * import { EodinAnalytics, EodinEvent } from '@eodin/web';
+ * import { EodinAnalytics, EodinEvent } from 'eodin-web';
  *
  * EodinAnalytics.track(EodinEvent.AppOpen);
  * EodinAnalytics.track(EodinEvent.PageView, { path: '/pricing' });
