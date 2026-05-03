@@ -17,7 +17,7 @@ PRD 참고: `./PRD.md`
 | Phase 2 (Capacitor 어댑터화) | ✅ 완료 | web.ts 729→525 lines (-28%). sdk-web `/internal` subpath. capacitor rollup external + IIFE globals. H1/H2/H3 모두 closure |
 | Phase 3 (Public surface) | ✅ 완료 | EodinAnalytics 본체 + GDPR + autoTrackPageView + globalThis pin (H1) + parity matrix 산출. 7 suites / 80 tests |
 | Phase 4 (테스트 + 문서) | ✅ 완료 | page-view-tracker test 8개 추가 (총 88 tests). TypeDoc 검증 internal 미노출. integration-guide §3.5 + §6.1 분리. README 갱신 |
-| Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag + kidstopia vendor tgz 사전 회귀 검증 (G1) |
+| Phase 5 (베타 publish) | 🚧 5.1 사전 점검 ✅ / 5.2 publish (사용자 토큰 대기) / 5.4 kidstopia 검증 (publish 후) | tarball 55.2 kB / 55 files / LICENSE+README 포함 / src·tests 미노출. security-check.sh 통과 |
 
 ### 산출 문서 (예정)
 
@@ -225,15 +225,16 @@ PRD 참고: `./PRD.md`
 
 ## Phase 5: 베타 publish
 
-### 5.1 publish 사전 점검
-- [ ] `package.json` version = `1.0.0-beta.1`
-- [ ] `files` 필드 — dist/, README.md, LICENSE 만 포함
-- [ ] `.npmignore` 또는 `files` 화이트리스트로 src/ 미포함 확인
-- [ ] `npm pack --dry-run` 으로 tarball 내용 검증
-- [ ] `docs/research/security-check.sh` 패턴이 신규 파일에서 모두 통과
+### 5.1 publish 사전 점검 ✅
+- [x] `package.json` version = `1.0.0-beta.1`
+- [x] `files` 필드 — `dist/, README.md, LICENSE` allowlist
+- [x] src/ tests/ 미포함 검증 — `npm pack --dry-run` 결과: 55 files / 55.2 kB / 205.9 kB unpacked. LICENSE 1.1 kB + README 2.5 kB + dist/cjs + dist/esm + package.json 만
+- [x] `docs/research/security-check.sh` 통과 — secret 패턴 0건. capacitor → `@eodin/web` 의존성은 intra-monorepo expected
+- [x] 최종 빌드 + 테스트: sdk-web 8 suites / 88 tests / capacitor 4 suites / 64 tests 회귀 0
+- [x] 코드 리뷰: senior-code-reviewer Phase 5.1 sub-task 는 빌드 config 검증이라 별도 review 안 함 (Phase 4 review 에 포함)
 
-### 5.2 publish 실행
-- [ ] `npm publish --access public --tag beta` (사용자 토큰 필요 — manual)
+### 5.2 publish 실행 — ⏸️ **사용자 토큰 대기**
+- [ ] `npm publish --access public --tag beta` (사용자 토큰 필요)
 - [ ] git tag `web-sdk-v1.0.0-beta.1`
 - [ ] origin push
 
