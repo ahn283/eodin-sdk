@@ -12,11 +12,12 @@ PRD 참고: `./PRD.md`
 | Phase | 상태 | 비고 |
 |---|---|---|
 | Phase 0 (사전 정렬) | ✅ 완료 | 메인 PRD / `web-sdk-targets.md` / 메인 CHECKLIST 정합성 갱신 |
+| Phase 1.0 (workspace 도입) | ⏳ 시작 전 | root `package.json` + npm workspaces. capacitor `dependencies` 에 `@eodin/web: workspace:*` 추가. 4채널 빌드 회귀 점검 |
 | Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
 | Phase 2 (Capacitor 어댑터화) | ⏳ 시작 전 | `packages/capacitor/src/web.ts` 가 `@eodin/web` 을 import 하도록 전환 |
 | Phase 3 (Public surface) | ⏳ 시작 전 | EodinAnalytics public API 확정 + 5채널 parity 검증 |
 | Phase 4 (테스트 + 문서) | ⏳ 시작 전 | jest + TypeDoc + integration-guide.md 갱신 |
-| Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag |
+| Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag + kidstopia vendor tgz 사전 회귀 검증 (G1) |
 
 ### 산출 문서 (예정)
 
@@ -40,6 +41,24 @@ PRD 참고: `./PRD.md`
 ### 0.3 메인 CHECKLIST 갱신
 - [x] 진행 상태 표에 "Phase Web (`@eodin/web` 신설)" 행 추가 — 본 CHECKLIST 링크 (`web-sdk/CHECKLIST.md`)
 - [x] §0.10 옆에 본 트랙으로 후속 진행 메모
+
+---
+
+## Phase 1.0: npm workspaces 도입 (D1 — publish 순서 의존성 해소)
+
+### 1.0.1 root `package.json` 신설
+- [ ] `package.json` (root) 신설 — `name: "eodin-sdk-monorepo"`, `private: true`, `workspaces: ["packages/*"]`
+- [ ] `.gitignore` root level 점검 — 각 패키지의 `node_modules` / `dist` 가 무시되는지 확인 (이미 패키지별 .gitignore 있음)
+
+### 1.0.2 capacitor 의존성 protocol 변경 사전 점검
+- [ ] 현재 `packages/capacitor/package.json` 의 dependencies / peerDependencies 구조 확인
+- [ ] `npm install` (root) 시 4채널 패키지 모두 설치 / 빌드 정상 여부 (capacitor / sdk-flutter pubspec / sdk-ios SwiftPM / sdk-android gradle 은 npm 영향 없음 — capacitor 만 영향)
+- [ ] capacitor 의 기존 `npm run build` / `npm test` workspace 모드에서 정상 동작 확인
+
+### 1.0.3 4채널 회귀 가드
+- [ ] capacitor 빌드: `npm -w @eodin/capacitor run build`
+- [ ] capacitor 테스트: `npm -w @eodin/capacitor test`
+- [ ] sdk-flutter / sdk-ios / sdk-android 는 npm 무관 — 점검 불필요
 
 ---
 
@@ -76,8 +95,9 @@ PRD 참고: `./PRD.md`
 
 ## Phase 2: Capacitor `web.ts` 어댑터화
 
-### 2.1 의존성 추가
-- [ ] `packages/capacitor/package.json` 의 `dependencies` 에 `@eodin/web: ^1.0.0-beta.1` 추가
+### 2.1 의존성 추가 (workspace protocol)
+- [ ] `packages/capacitor/package.json` 의 `dependencies` 에 `"@eodin/web": "workspace:*"` 추가 (Phase 1.0 의 workspace 활용 — publish 시 npm 이 actual version 으로 치환)
+- [ ] root `npm install` 재실행으로 symlink 생성 확인
 
 ### 2.2 web.ts 코드 교체
 - [ ] `packages/capacitor/src/web.ts` 의 EventQueue / NetworkClient / EndpointValidator / EodinEvent 직접 구현 → `@eodin/web` 의 export 사용으로 교체
@@ -93,11 +113,14 @@ PRD 참고: `./PRD.md`
 
 ## Phase 3: Public Surface 확정
 
-### 3.1 EodinAnalytics
-- [ ] `src/analytics/eodin-analytics.ts` — configure / track / identify / clearIdentity / flush
-- [ ] `src/analytics/gdpr.ts` — setHasUserConsent / deleteAllData 등 Phase 1.7 4채널 surface 와 의미 parity
+### 3.1 EodinAnalytics (PRD §5 의 모든 surface)
+- [ ] `src/analytics/eodin-analytics.ts` — configure / track (positional) / identify / clearIdentity / flush
+- [ ] **Attribution + Sessions**: setAttribution / startSession / endSession
+- [ ] **Status getters**: getDeviceId / getUserId / getSessionId / getAttribution / getStatus
+- [ ] **GDPR (4채널 실제 메서드명)**: setEnabled / isEnabled / requestDataDeletion (Phase 1.7 surface 와 동일)
 - [ ] auto-flush — `pagehide` / `visibilitychange` 이벤트에서 sendBeacon
-- [ ] page_view 자동 부착 옵션 — `EodinAnalytics.configure({ autoTrackPageView: true })` (default false — 호스트가 명시적으로 켜기)
+- [ ] **autoTrackPageView (PRD §5 명시)**: `EodinAnalytics.configure({ autoTrackPageView: true })` 시 internal page-view tracker 가 history API + popstate 구독. default false
+- [ ] **iOS-only ATT 메서드 의도적 미노출**: requestTrackingAuthorization / getATTStatus / setDeviceATT 는 web surface 에서 제외 (5채널 documented asymmetry — `parity-matrix-5ch.md` 에 기록)
 
 ### 3.2 Public exports
 - [ ] `src/index.ts` 에서 EodinAnalytics, EodinEvent, 관련 type 만 re-export
@@ -116,7 +139,10 @@ PRD 참고: `./PRD.md`
 
 ### 4.1 Unit test 보강
 - [ ] EodinAnalytics: configure / track / identify / clearIdentity / flush 시나리오
-- [ ] GDPR: consent false → 큐 클리어 검증, deleteAllData → localStorage 클리어 검증
+- [ ] Attribution / Session: setAttribution / startSession / endSession 시나리오
+- [ ] Status getters: getDeviceId / getUserId / getSessionId / getAttribution / getStatus 반환값 검증
+- [ ] **GDPR (PRD §5 surface)**: setEnabled(false) → 신규 이벤트 drop / 큐 보존, isEnabled getter, requestDataDeletion → 로컬 큐 + 식별자 클리어 검증
+- [ ] autoTrackPageView: history API navigation / popstate / hashchange 시 자동 page_view 발생 검증
 - [ ] EndpointValidator: HTTPS only enforcement (4채널과 동일 케이스)
 - [ ] EventQueue: idempotent enqueue / at-least-once / bounded growth / cold-start (localStorage 직접 set 후 재시작 시뮬레이션)
 
@@ -151,6 +177,14 @@ PRD 참고: `./PRD.md`
 - [ ] `npm view @eodin/web@beta` 로 버전 확인
 - [ ] 별도 sandbox 프로젝트에서 `npm install @eodin/web@beta` → import → configure → track 1회 e2e 확인
 
+### 5.4 kidstopia vendor tgz 사전 회귀 검증 (G1 — 라이브 회귀 가드)
+- [ ] `@eodin/web` publish 완료 후 `@eodin/capacitor` 도 patch 빌드 (workspace:* → actual version range 자동 치환 확인)
+- [ ] `npm pack @eodin/capacitor` → vendor tgz 산출
+- [ ] kidstopia 로컬 환경에서 기존 vendor tgz 를 신규 tgz 로 교체
+- [ ] kidstopia 로컬 빌드 (`npx cap sync` + `npm run build`) 정상
+- [ ] 로컬 device / browser 에서 EodinAnalytics 호출 → `api.eodin.app` 도달 1회 확인
+- [ ] 회귀 없음 확인 후 메인 PRD §5 (5개 앱 마이그) 의 kidstopia 마이그 입력으로 활용
+
 ---
 
 ## 후속 (본 CHECKLIST 범위 밖)
@@ -159,3 +193,5 @@ PRD 참고: `./PRD.md`
 - EodinAuth 모듈 추가 — Auth 트랙
 - `@eodin/web/server` subpath (Next.js SSR) — Auth 트랙
 - publish CI/CD 자동화 — 메인 PRD `Phase 0.5.6 / Phase 1.2` 와 묶임 (사용자 토큰 대기)
+- **C3 — backend `apiKeyAuth` origin allowlist 강화** — `@eodin/web` 채택 시점 전까지 `apps/api/src/...` 의 apiKeyAuth 미들웨어가 `Origin` / `Referer` 검증을 추가해야 함. 별도 ticket 으로 등록 (본 SDK 트랙 외)
+- F1 — `apps/web` (link.eodin.app) 이 `@eodin/web` 채택 시 server-side `/events/click` + client-side `/events/collect` 이중 logging 정의 필요. 채택 트랙에서 다룸
