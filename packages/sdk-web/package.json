@@ -16,6 +16,11 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"
+    },
+    "./internal": {
+      "types": "./dist/esm/internal/index.d.ts",
+      "import": "./dist/esm/internal/index.js",
+      "require": "./dist/cjs/internal/index.js"
     }
   },
   "files": [

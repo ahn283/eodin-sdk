@@ -19,8 +19,10 @@ export interface QueuedEvent {
   properties?: Record<string, unknown>;
 }
 
-const DEFAULT_MAX_QUEUE_SIZE = 1000;
 const QUEUE_LOCK_NAME = 'eodin_event_queue_lock';
+
+/** Optional observability hook — quota drop / 큐 키 제거 시점에 호출. */
+export type EventQueueLogger = (message: string) => void;
 
 interface LockManagerLike {
   request(name: string, callback: () => Promise<void>): Promise<void>;
@@ -36,9 +38,13 @@ interface LockManagerLike {
  * multi-tab 에서는 lost-update 위험이 있고 README 에 명시.
  */
 export class EventQueue {
+  /**
+   * @param storageKey localStorage key. 기본 `STORAGE_KEYS.queue`.
+   * @param onQuotaExceeded quota drop / 큐 키 제거 시점에 호출 (관측성 콜백).
+   */
   constructor(
     private readonly storageKey: string = STORAGE_KEYS.queue,
-    private readonly maxSize: number = DEFAULT_MAX_QUEUE_SIZE,
+    private readonly onQuotaExceeded?: EventQueueLogger,
   ) {}
 
   read(): QueuedEvent[] {
@@ -73,6 +79,10 @@ export class EventQueue {
           trimmed = trimmed.slice(dropCount);
           try {
             writeStorage(this.storageKey, JSON.stringify(trimmed));
+            const dropped = events.length - trimmed.length;
+            this.onQuotaExceeded?.(
+              `Queue quota exceeded — dropped ${dropped} oldest events`,
+            );
             return;
           } catch (retryError) {
             if (!isQuotaError(retryError)) throw retryError;
@@ -85,6 +95,7 @@ export class EventQueue {
         } catch {
           // storage 자체 미가용 — silent drop.
         }
+        this.onQuotaExceeded?.('Queue dropped entirely — localStorage exhausted');
         return;
       }
       throw error;
@@ -92,17 +103,20 @@ export class EventQueue {
   }
 
   /**
-   * read-modify-write 직렬화. mutator 가 반환한 새 큐 배열이 maxSize 를 넘으면
-   * oldest 부터 trim 후 write.
+   * read-modify-write 직렬화. mutator 가 반환한 새 큐 배열을 그대로 write.
+   *
+   * **트림 정책 — 호출자 책임**: 본 메서드는 maxSize trim 을 강제하지 않는다.
+   * track() 처럼 일반 enqueue 경로는 mutator 안에서 명시적으로 oldest trim
+   * 을 수행하고, requeueBatch() (flush 실패 retry) 같은 경로는 일시적으로
+   * maxSize 를 초과해도 batch 보존이 우선 — 다음 track() 호출에서 자연
+   * trim. (Phase 2 review H1 — universal trim 이 prepend-pattern requeue 와
+   * 충돌해 batch 통째로 drop 되던 회귀 수정.)
    */
   async withLock(
     mutator: (queue: QueuedEvent[]) => QueuedEvent[],
   ): Promise<void> {
     const apply = (): void => {
-      let next = mutator(this.read());
-      if (next.length > this.maxSize) {
-        next = next.slice(next.length - this.maxSize);
-      }
+      const next = mutator(this.read());
       this.write(next);
     };
 

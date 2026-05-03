@@ -120,14 +120,15 @@ describe('EventQueue.withLock', () => {
     expect(queue.size()).toBe(0);
   });
 
-  it('maxSize 초과 시 oldest 부터 trim', async () => {
-    const queue = new EventQueue(STORAGE_KEYS.queue, /* maxSize */ 3);
+  it('maxSize trim 은 호출자 책임 (Phase 2 review H1) — withLock 자체는 mutator 결과 그대로 저장', async () => {
+    const queue = new EventQueue();
     await queue.withLock(() =>
       Array.from({ length: 10 }, (_, i) => makeEvent({ event_name: `e${i}` })),
     );
+    expect(queue.size()).toBe(10);
+    // 호출자가 mutator 안에서 trim 해야 함 (track callsite 의 책임)
+    await queue.withLock((current) => current.slice(current.length - 3));
     const events = queue.read();
-    expect(events.length).toBe(3);
-    // newest 3 은 e7, e8, e9 가 남아야 함 (oldest trim)
     expect(events.map((e) => e.event_name)).toEqual(['e7', 'e8', 'e9']);
   });
 
@@ -136,5 +137,67 @@ describe('EventQueue.withLock', () => {
     expect(queue.hasLockManager()).toBe(false);
     await queue.withLock(() => [makeEvent()]);
     expect(queue.size()).toBe(1);
+  });
+});
+
+describe('EventQueue.onQuotaExceeded callback (Phase 2 review H2)', () => {
+  it('quota drop 시 콜백 호출 — dropped 개수 메시지', () => {
+    const messages: string[] = [];
+    const queue = new EventQueue(STORAGE_KEYS.queue, (msg) => messages.push(msg));
+
+    const realSetItem = Storage.prototype.setItem;
+    let attempts = 0;
+    const setItemSpy = jest
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        attempts++;
+        if (key === STORAGE_KEYS.queue && attempts < 3) {
+          const err = new Error('quota');
+          err.name = 'QuotaExceededError';
+          throw err;
+        }
+        return realSetItem.call(this, key, value);
+      });
+
+    const events = Array.from({ length: 10 }, () => makeEvent());
+    queue.write(events);
+    setItemSpy.mockRestore();
+
+    expect(messages.length).toBe(1);
+    expect(messages[0]).toMatch(/dropped \d+ oldest events/);
+  });
+
+  it('큐 키 자체 제거 시 별도 메시지', () => {
+    const messages: string[] = [];
+    const queue = new EventQueue(STORAGE_KEYS.queue, (msg) => messages.push(msg));
+
+    const setItemSpy = jest
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        const err = new Error('quota');
+        err.name = 'QuotaExceededError';
+        throw err;
+      });
+
+    const events = Array.from({ length: 10 }, () => makeEvent());
+    queue.write(events);
+    setItemSpy.mockRestore();
+
+    expect(messages.some((m) => m.includes('dropped entirely'))).toBe(true);
+  });
+
+  it('콜백 미지정 시에도 정상 동작 (silent drop)', () => {
+    const queue = new EventQueue();
+    const setItemSpy = jest
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (this: Storage, key: string, _value: string) {
+        if (key === STORAGE_KEYS.queue) {
+          const err = new Error('quota');
+          err.name = 'QuotaExceededError';
+          throw err;
+        }
+      });
+    expect(() => queue.write([makeEvent(), makeEvent()])).not.toThrow();
+    setItemSpy.mockRestore();
   });
 });

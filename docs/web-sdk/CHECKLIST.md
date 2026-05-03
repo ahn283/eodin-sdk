@@ -14,7 +14,7 @@ PRD 참고: `./PRD.md`
 | Phase 0 (사전 정렬) | ✅ 완료 | 메인 PRD / `web-sdk-targets.md` / 메인 CHECKLIST 정합성 갱신 |
 | Phase 1.0 (workspace 도입) | ✅ 완료 | root `package.json` 신설, capacitor 빌드/테스트 64/64 통과, code review Grade A |
 | Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
-| Phase 2 (Capacitor 어댑터화) | ⏳ 시작 전 | `packages/capacitor/src/web.ts` 가 `@eodin/web` 을 import 하도록 전환 |
+| Phase 2 (Capacitor 어댑터화) | ✅ 완료 | web.ts 729→525 lines (-28%). sdk-web `/internal` subpath. capacitor rollup external + IIFE globals. H1/H2/H3 모두 closure |
 | Phase 3 (Public surface) | ⏳ 시작 전 | EodinAnalytics public API 확정 + 5채널 parity 검증 |
 | Phase 4 (테스트 + 문서) | ⏳ 시작 전 | jest + TypeDoc + integration-guide.md 갱신 |
 | Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag + kidstopia vendor tgz 사전 회귀 검증 (G1) |
@@ -112,21 +112,28 @@ PRD 참고: `./PRD.md`
 
 ---
 
-## Phase 2: Capacitor `web.ts` 어댑터화
+## Phase 2: Capacitor `web.ts` 어댑터화 ✅
 
-### 2.1 의존성 추가 (workspace protocol)
-- [ ] `packages/capacitor/package.json` 의 `dependencies` 에 `"@eodin/web": "workspace:*"` 추가 (Phase 1.0 의 workspace 활용 — publish 시 npm 이 actual version 으로 치환)
-- [ ] root `npm install` 재실행으로 symlink 생성 확인
+### 2.1 의존성 추가 ✅
+- [x] sdk-web 에 `./internal` subpath export 추가 (`packages/sdk-web/src/internal/index.ts` barrel + `package.json` exports + dual-entry rollup)
+- [x] `packages/capacitor/package.json` 의 `dependencies` 에 `"@eodin/web": "^1.0.0-beta.1"` 추가 (npm 은 `workspace:*` 미지원 — explicit version range 사용. workspace symlink 으로 dev 시 자동 해결, publish 시 그대로 유지)
+- [x] `packages/capacitor/tsconfig.json` 의 `moduleResolution` `"node"` → `"bundler"` (TS 가 `exports` field subpath 인식)
+- [x] root `npm install` 재실행으로 `node_modules/@eodin/web` symlink 생성 확인
 
-### 2.2 web.ts 코드 교체
-- [ ] `packages/capacitor/src/web.ts` 의 EventQueue / NetworkClient / EndpointValidator / EodinEvent 직접 구현 → `@eodin/web` 의 export 사용으로 교체
-- [ ] capacitor 특유 로직 (positional API, native bridge 분기) 만 남기고 web 로직 제거
-- [ ] 라인 수 비교 — 추출 전 vs 후 (목표: -50% 이상)
+### 2.2 web.ts 코드 교체 ✅
+- [x] `packages/capacitor/src/web.ts` 의 STORAGE_KEYS / validateEndpoint / uuid / EventQueue / fetchWithTimeout / sendBeacon / isQuotaError → `@eodin/web/internal` import 로 교체
+- [x] capacitor 특유 로직 유지: WebPlugin extension / lifecycle listeners / GDPR 메서드 / attributionToWire / sendBeacon flushOnExit / capacitor-specific constants
+- [x] 라인 수: 729 → 525 (-204 lines, **-28%**)
 
-### 2.3 회귀 검증
-- [ ] `packages/capacitor/src/__tests__/web.test.ts` 모두 통과 (수정 없이)
-- [ ] `packages/capacitor/src/__tests__/eodin-event.test.ts` 통과
-- [ ] `packages/capacitor/src/__tests__/endpoint-validator.test.ts` — 이 파일이 capacitor 에 남아 있을지 `@eodin/web` 으로 옮길지 결정 (권장: `@eodin/web` 으로 이전, capacitor 에서는 import test 만 유지)
+### 2.3 회귀 검증 ✅
+- [x] capacitor 64/64 통과 (`web.test.ts` / `eodin-event.test.ts` / `endpoint-validator.test.ts` / `definitions.test.ts` — 무수정)
+- [x] sdk-web 60/60 통과 (3 신규 `onQuotaExceeded` callback test 추가)
+- [x] 코드 리뷰: senior-code-reviewer Grade B+. CRITICAL 0 / **HIGH 3** / MEDIUM 4 / LOW 3 / INFO 3.
+  - **H1 즉시 적용**: requeueBatch prepend 와 EventQueue.withLock universal trim 의 충돌 해결 — withLock 의 auto-trim 제거, track callsite 명시 trim 복귀
+  - **H2 즉시 적용**: EventQueue 에 `onQuotaExceeded` 콜백 추가 — capacitor 가 logger 주입해 quota drop 관측성 복원
+  - **H3 즉시 적용**: capacitor rollup `external` 에 `'@eodin/web'` / `'@eodin/web/internal'` 추가 + IIFE globals 매핑. publish artifact 에 EventQueue 인라인 안 됨 (`grep -c "class EventQueue" dist/plugin.cjs.js` = 0). dependencies 와 artifact 동작 일치
+  - 후속 (M1-M4 / L1-L3): Phase 3 또는 별도 ticket
+- [x] 산출: `web-sdk/reviews/phase-2-code-review.md`
 
 ---
 

@@ -42,6 +42,9 @@
       "src": "android"
     }
   },
+  "dependencies": {
+    "@eodin/web": "^1.0.0-beta.1"
+  },
   "peerDependencies": {
     "@capacitor/core": ">=5.0.0"
   },

@@ -1,4 +1,16 @@
 import { WebPlugin } from '@capacitor/core';
+import {
+  EventQueue,
+  type QueuedEvent,
+  STORAGE_KEYS,
+  fetchWithTimeout,
+  readStorage,
+  removeStorage,
+  sendBeacon,
+  uuid,
+  validateEndpoint,
+  writeStorage,
+} from '@eodin/web/internal';
 
 import type {
   EodinDeeplinkPlugin,
@@ -11,6 +23,10 @@ import type {
   ATTStatus,
   AnalyticsStatus,
 } from './definitions';
+
+// `validateEndpoint` 는 capacitor 의 외부 import 점이기도 했으므로 재export 유지
+// (back-compat). Phase 2 어댑터화로 본체는 `@eodin/web/internal` 에 있음.
+export { validateEndpoint };
 
 // ---------------------------------------------------------------------------
 // EodinDeeplinkWeb
@@ -53,90 +69,12 @@ export class EodinDeeplinkWeb extends WebPlugin implements EodinDeeplinkPlugin {
 // EodinAnalyticsWeb
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEYS = {
-  deviceId: 'eodin_device_id',
-  userId: 'eodin_user_id',
-  sessionId: 'eodin_session_id',
-  sessionStart: 'eodin_session_start',
-  attribution: 'eodin_attribution',
-  enabled: 'eodin_enabled',
-  queue: 'eodin_event_queue',
-} as const;
-
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const QUEUE_FLUSH_THRESHOLD = 20;
 const QUEUE_FLUSH_INTERVAL_MS = 30 * 1000;
 const MAX_QUEUE_SIZE = 1000;
 const MAX_BATCH_SIZE = 50;
 const FETCH_TIMEOUT_MS = 10 * 1000; // 10s — flush requests should never hang the page
-const QUEUE_LOCK_NAME = 'eodin_event_queue_lock';
-// Web (browser) SDK 는 emulator-only 주소인 `10.0.2.2` 를 허용하지 않는다.
-// Web 환경에서는 의미가 없을 뿐더러 mixed-content 정책이 release 에서 막아주지
-// 않는 사설망 IP 라 reject (코드리뷰 H1).
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1']);
-
-/**
- * S8 보안 정책 (Phase 1.6): SDK 의 모든 API endpoint 는 HTTPS 만 허용.
- *
- * dev 워크플로우 유지를 위해 loopback 주소의 `http://` 는 허용:
- * - `localhost`, `127.0.0.1`
- *
- * 그 외 `http://` 주소는 `Error` throw — `configure()` 시점에 즉시 발견.
- * cross-platform 정합 (M2): 입력은 `trim()` + scheme lowercase 비교.
- */
-export function validateEndpoint(endpoint: string, paramName = 'apiEndpoint'): void {
-  const trimmed = endpoint.trim();
-  if (trimmed.length === 0) {
-    throw new Error(`${paramName} must not be empty`);
-  }
-  let url: URL;
-  try {
-    url = new URL(trimmed);
-  } catch {
-    throw new Error(`${paramName} must be a valid absolute URL: ${endpoint}`);
-  }
-  if (!url.protocol || !url.hostname) {
-    throw new Error(`${paramName} must be a valid absolute URL: ${endpoint}`);
-  }
-  const scheme = url.protocol.replace(/:$/, '').toLowerCase();
-  const host = url.hostname.toLowerCase();
-  if (scheme === 'https') return;
-  if (scheme === 'http' && LOOPBACK_HOSTS.has(host)) return;
-  throw new Error(
-    `${paramName} must use HTTPS (only http://localhost / 127.0.0.1 allowed; got: ${endpoint})`,
-  );
-}
-
-interface QueuedEvent {
-  event_id: string;
-  event_name: string;
-  app_id: string;
-  device_id: string;
-  user_id: string | null;
-  session_id: string | null;
-  timestamp: string;
-  attribution?: Record<string, string | undefined>;
-  properties?: Record<string, unknown>;
-}
-
-function uuid(): string {
-  // crypto.randomUUID is widely available since 2022 in browsers + jsdom.
-  // Fall back to a v4-shaped string if unavailable (edge-case test envs).
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  // RFC4122 v4 fallback
-  const bytes = new Uint8Array(16);
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
-  }
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0'));
-  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`;
-}
 
 /**
  * Camel → snake helper for Attribution keys (matches `AttributionSchema` on
@@ -173,6 +111,11 @@ function attributionToWire(
  * ATT: web has no equivalent of iOS App Tracking Transparency — the ATT
  * methods return `{ status: 'unknown' }` instead of throwing, so
  * cross-platform code paths stay simple.
+ *
+ * Phase 2 (web-sdk track): EventQueue / NetworkClient / EndpointValidator /
+ * uuid / STORAGE_KEYS 는 `@eodin/web/internal` 에서 import. 본 클래스는
+ * Capacitor plugin surface (positional API + native bridge 연동) + lifecycle
+ * listener + sendBeacon flushOnExit + GDPR 본체 만 담당.
  */
 export class EodinAnalyticsWeb
   extends WebPlugin
@@ -185,6 +128,12 @@ export class EodinAnalyticsWeb
   private offlineMode = true;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private lifecycleAttached = false;
+  // EventQueue 가 quota drop / 큐 키 제거 시 호출하는 관측성 콜백 — debug 모드
+  // 에서 console.log 로 surface (Phase 2 review H2 — capacitor 가 quota drop
+  // 관측성을 잃지 않도록 logger 콜백 주입).
+  private readonly queue = new EventQueue(undefined, (msg: string) =>
+    this.log(msg, true),
+  );
 
   async configure(options: AnalyticsConfigureOptions): Promise<void> {
     validateEndpoint(options.apiEndpoint);
@@ -195,8 +144,8 @@ export class EodinAnalyticsWeb
     this.offlineMode = options.offlineMode ?? true;
 
     // Initialise device id once per browser
-    if (this.readStorage(STORAGE_KEYS.deviceId) === null) {
-      this.writeStorage(STORAGE_KEYS.deviceId, uuid());
+    if (readStorage(STORAGE_KEYS.deviceId) === null) {
+      writeStorage(STORAGE_KEYS.deviceId, uuid());
     }
 
     // Resume or start session
@@ -237,14 +186,14 @@ export class EodinAnalyticsWeb
       event_id: uuid(),
       event_name: options.eventName,
       app_id: this.appId!,
-      device_id: this.readStorage(STORAGE_KEYS.deviceId)!,
-      user_id: this.readStorage(STORAGE_KEYS.userId),
-      session_id: this.readStorage(STORAGE_KEYS.sessionId),
+      device_id: readStorage(STORAGE_KEYS.deviceId)!,
+      user_id: readStorage(STORAGE_KEYS.userId),
+      session_id: readStorage(STORAGE_KEYS.sessionId),
       timestamp: new Date().toISOString(),
       properties: options.properties,
     };
 
-    const attrJson = this.readStorage(STORAGE_KEYS.attribution);
+    const attrJson = readStorage(STORAGE_KEYS.attribution);
     if (attrJson) {
       try {
         event.attribution = JSON.parse(attrJson) as Record<string, string | undefined>;
@@ -253,38 +202,37 @@ export class EodinAnalyticsWeb
       }
     }
 
-    // H1: Web Locks API serialises queue read-modify-write across tabs.
-    // Falls back to direct write when the API is unavailable (single-tab
-    // usage stays correct; multi-tab without locks degrades to the v1 risk
-    // and is documented in the SDK README).
-    await this.withQueueLock((queue) => {
-      queue.push(event);
-      if (queue.length > MAX_QUEUE_SIZE) {
-        queue.splice(0, queue.length - MAX_QUEUE_SIZE);
-      }
-      return queue;
+    // track 경로에서 명시적으로 oldest trim — Phase 2 review H1: EventQueue.
+    // withLock 의 universal trim 제거 → 호출자 책임. requeueBatch (flush
+    // 실패 retry) 경로는 일시적 maxSize 초과를 허용하고 다음 track 에서
+    // 자연 trim.
+    await this.queue.withLock((current) => {
+      const next = [...current, event];
+      return next.length > MAX_QUEUE_SIZE
+        ? next.slice(next.length - MAX_QUEUE_SIZE)
+        : next;
     });
 
-    const status = await this.getStatus();
-    this.log(`Enqueued ${options.eventName} (queue=${status.queueSize})`);
+    const queueSize = this.queue.size();
+    this.log(`Enqueued ${options.eventName} (queue=${queueSize})`);
 
-    if (status.queueSize >= QUEUE_FLUSH_THRESHOLD) {
+    if (queueSize >= QUEUE_FLUSH_THRESHOLD) {
       void this.flush();
     }
   }
 
   async identify(options: { userId: string }): Promise<void> {
-    this.writeStorage(STORAGE_KEYS.userId, options.userId);
+    writeStorage(STORAGE_KEYS.userId, options.userId);
     this.log(`Identified user: ${options.userId}`);
   }
 
   async clearIdentity(): Promise<void> {
-    this.removeStorage(STORAGE_KEYS.userId);
+    removeStorage(STORAGE_KEYS.userId);
     this.log('Cleared user identity');
   }
 
   async setAttribution(attribution: Attribution): Promise<void> {
-    this.writeStorage(
+    writeStorage(
       STORAGE_KEYS.attribution,
       JSON.stringify(attributionToWire(attribution)),
     );
@@ -297,14 +245,14 @@ export class EodinAnalyticsWeb
     // Atomically take a batch under the queue lock so concurrent track()
     // and flush() calls in different tabs cannot duplicate or drop events.
     let batch: QueuedEvent[] = [];
-    await this.withQueueLock((queue) => {
-      batch = queue.splice(0, MAX_BATCH_SIZE);
-      return queue;
+    await this.queue.withLock((current) => {
+      batch = current.slice(0, MAX_BATCH_SIZE);
+      return current.slice(batch.length);
     });
     if (batch.length === 0) return;
 
     try {
-      const response = await this.fetchWithTimeout(
+      const response = await fetchWithTimeout(
         `${this.apiEndpoint}/events/collect`,
         {
           method: 'POST',
@@ -333,17 +281,17 @@ export class EodinAnalyticsWeb
 
   async startSession(): Promise<void> {
     const sessionId = uuid();
-    this.writeStorage(STORAGE_KEYS.sessionId, sessionId);
-    this.writeStorage(STORAGE_KEYS.sessionStart, String(Date.now()));
+    writeStorage(STORAGE_KEYS.sessionId, sessionId);
+    writeStorage(STORAGE_KEYS.sessionStart, String(Date.now()));
     this.log(`Started session: ${sessionId}`);
     await this.track({ eventName: 'session_start' });
   }
 
   async endSession(): Promise<void> {
-    if (this.readStorage(STORAGE_KEYS.sessionId) !== null) {
+    if (readStorage(STORAGE_KEYS.sessionId) !== null) {
       // logging-audit M1: include duration_seconds so cross-app session
       // length analysis (PRD §15.2) doesn't lose web data.
-      const startRaw = this.readStorage(STORAGE_KEYS.sessionStart);
+      const startRaw = readStorage(STORAGE_KEYS.sessionStart);
       const properties: Record<string, unknown> = {};
       if (startRaw !== null) {
         const elapsed = Date.now() - Number(startRaw);
@@ -356,8 +304,8 @@ export class EodinAnalyticsWeb
         properties: Object.keys(properties).length > 0 ? properties : undefined,
       });
     }
-    this.removeStorage(STORAGE_KEYS.sessionId);
-    this.removeStorage(STORAGE_KEYS.sessionStart);
+    removeStorage(STORAGE_KEYS.sessionId);
+    removeStorage(STORAGE_KEYS.sessionStart);
   }
 
   /**
@@ -386,11 +334,11 @@ export class EodinAnalyticsWeb
   async getStatus(): Promise<AnalyticsStatus> {
     return {
       isConfigured: this.isConfigured(),
-      deviceId: this.readStorage(STORAGE_KEYS.deviceId),
-      userId: this.readStorage(STORAGE_KEYS.userId),
-      sessionId: this.readStorage(STORAGE_KEYS.sessionId),
+      deviceId: readStorage(STORAGE_KEYS.deviceId),
+      userId: readStorage(STORAGE_KEYS.userId),
+      sessionId: readStorage(STORAGE_KEYS.sessionId),
       isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
-      queueSize: this.readQueue().length,
+      queueSize: this.queue.size(),
       attStatus: 'unknown',
     };
   }
@@ -398,18 +346,18 @@ export class EodinAnalyticsWeb
   // -- GDPR / Right to Erasure (Phase 1.7 — open-issues §4.5) -----------
 
   async setEnabled(options: { enabled: boolean }): Promise<void> {
-    this.writeStorage(STORAGE_KEYS.enabled, options.enabled ? 'true' : 'false');
+    writeStorage(STORAGE_KEYS.enabled, options.enabled ? 'true' : 'false');
     // HIGH-1/M4 (Phase 1.7 logging-audit): opt-out is immediate. Discard
     // pending events in the queue (under the queue lock to be safe under
     // multi-tab) so post-disable flush does not carry pre-disable events.
     if (!options.enabled) {
-      await this.withQueueLock(() => []);
+      await this.queue.withLock(() => []);
     }
     this.log(`Analytics ${options.enabled ? 'enabled' : 'disabled'}`);
   }
 
   async isEnabled(): Promise<{ enabled: boolean }> {
-    const value = this.readStorage(STORAGE_KEYS.enabled);
+    const value = readStorage(STORAGE_KEYS.enabled);
     return { enabled: value === null ? true : value === 'true' };
   }
 
@@ -424,8 +372,8 @@ export class EodinAnalyticsWeb
       return { success: false };
     }
 
-    const deviceId = this.readStorage(STORAGE_KEYS.deviceId);
-    const userId = this.readStorage(STORAGE_KEYS.userId);
+    const deviceId = readStorage(STORAGE_KEYS.deviceId);
+    const userId = readStorage(STORAGE_KEYS.userId);
 
     // L3: defensive — if device id is somehow missing, skip wire call but
     // still honour the local-erasure contract.
@@ -443,7 +391,7 @@ export class EodinAnalyticsWeb
       };
       if (userId !== null) body.user_id = userId;
 
-      const response = await this.fetchWithTimeout(
+      const response = await fetchWithTimeout(
         `${this.apiEndpoint}/events/user-data`,
         {
           method: 'DELETE',
@@ -475,31 +423,21 @@ export class EodinAnalyticsWeb
    * device id + session immediately created so subsequent track() works.
    */
   private async clearLocalData(): Promise<void> {
-    const preservedEnabled = this.readStorage(STORAGE_KEYS.enabled);
+    const preservedEnabled = readStorage(STORAGE_KEYS.enabled);
 
-    const wipe = (): void => {
+    // Clear all keys EXCEPT the preserved enabled flag, then reseed device id.
+    // Use queue.withLock to serialise with concurrent track() across tabs.
+    await this.queue.withLock(() => {
       for (const key of Object.values(STORAGE_KEYS)) {
-        if (key === STORAGE_KEYS.enabled) continue; // preserve opt-out
-        this.removeStorage(key);
+        if (key === STORAGE_KEYS.enabled) continue;
+        removeStorage(key);
       }
-      // Re-bootstrap fresh identity so post-deletion track() does not
-      // emit null device_id / silently drop on uninitialised state.
-      this.writeStorage(STORAGE_KEYS.deviceId, uuid());
-      // Restore preserved enabled flag (no-op if it was already absent).
+      writeStorage(STORAGE_KEYS.deviceId, uuid());
       if (preservedEnabled !== null) {
-        this.writeStorage(STORAGE_KEYS.enabled, preservedEnabled);
+        writeStorage(STORAGE_KEYS.enabled, preservedEnabled);
       }
-    };
-
-    const locks = (typeof navigator !== 'undefined' &&
-      (navigator as Navigator & { locks?: LockManager }).locks) || null;
-    if (locks && typeof locks.request === 'function') {
-      await locks.request(QUEUE_LOCK_NAME, async () => {
-        wipe();
-      });
-    } else {
-      wipe();
-    }
+      return [];
+    });
 
     // Restart session under the new device id (does not depend on the lock).
     this.ensureSession();
@@ -516,14 +454,14 @@ export class EodinAnalyticsWeb
 
   /** Synchronous internal — public async `isEnabled()` returns the same. */
   private isEnabledSync(): boolean {
-    const value = this.readStorage(STORAGE_KEYS.enabled);
+    const value = readStorage(STORAGE_KEYS.enabled);
     if (value === null) return true; // default-enabled
     return value === 'true';
   }
 
   private ensureSession(): void {
-    const sessionId = this.readStorage(STORAGE_KEYS.sessionId);
-    const sessionStart = this.readStorage(STORAGE_KEYS.sessionStart);
+    const sessionId = readStorage(STORAGE_KEYS.sessionId);
+    const sessionStart = readStorage(STORAGE_KEYS.sessionStart);
     if (sessionId !== null && sessionStart !== null) {
       const elapsed = Date.now() - Number(sessionStart);
       if (elapsed < SESSION_TIMEOUT_MS) {
@@ -534,130 +472,9 @@ export class EodinAnalyticsWeb
     void this.startSession();
   }
 
-  private readStorage(key: string): string | null {
-    if (typeof localStorage === 'undefined') return null;
-    return localStorage.getItem(key);
-  }
-
-  private writeStorage(key: string, value: string): void {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(key, value);
-  }
-
-  private removeStorage(key: string): void {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.removeItem(key);
-  }
-
-  private readQueue(): QueuedEvent[] {
-    const raw = this.readStorage(STORAGE_KEYS.queue);
-    if (raw === null) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as QueuedEvent[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  private writeQueue(events: QueuedEvent[]): void {
-    const serialised = JSON.stringify(events);
-    try {
-      this.writeStorage(STORAGE_KEYS.queue, serialised);
-    } catch (error) {
-      // H2: localStorage quota exceeded. Drop the oldest events until the
-      // payload fits. This favours newest events (most likely tied to the
-      // current user action) over historical backlog.
-      if (this.isQuotaError(error)) {
-        let trimmed = events;
-        while (trimmed.length > 0) {
-          const dropCount = Math.max(1, Math.floor(trimmed.length / 2));
-          trimmed = trimmed.slice(dropCount);
-          try {
-            this.writeStorage(STORAGE_KEYS.queue, JSON.stringify(trimmed));
-            this.log(
-              `Queue quota exceeded — dropped ${events.length - trimmed.length} oldest events`,
-              true,
-            );
-            return;
-          } catch (retryError) {
-            if (!this.isQuotaError(retryError)) throw retryError;
-          }
-        }
-        // Even an empty array failed — last resort: clear the queue key.
-        try {
-          this.removeStorage(STORAGE_KEYS.queue);
-        } catch {
-          // Storage entirely unavailable. Lose the batch silently rather
-          // than throw out of track() / flush().
-        }
-        this.log('Queue dropped entirely — localStorage exhausted', true);
-        return;
-      }
-      throw error;
-    }
-  }
-
-  private isQuotaError(error: unknown): boolean {
-    if (!(error instanceof Error)) return false;
-    // Names vary across browsers: "QuotaExceededError" (modern), legacy
-    // "NS_ERROR_DOM_QUOTA_REACHED" (Firefox), code 22 / 1014 (older WebKit).
-    if (
-      error.name === 'QuotaExceededError' ||
-      error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
-    ) {
-      return true;
-    }
-    const code = (error as { code?: number }).code;
-    return code === 22 || code === 1014;
-  }
-
-  /**
-   * H1: Serialises a queue read-modify-write through the Web Locks API so
-   * concurrent tabs don't drop events via lost-update.
-   *
-   * Falls back to a non-locked read-modify-write when the API is missing
-   * (older browsers, non-secure contexts, test envs) — single-tab usage
-   * stays correct, multi-tab behaves like the v1 risk and is documented
-   * in the SDK README.
-   */
-  private async withQueueLock(
-    mutator: (queue: QueuedEvent[]) => QueuedEvent[],
-  ): Promise<void> {
-    const locks =
-      typeof navigator !== 'undefined' &&
-      (navigator as Navigator & { locks?: LockManager }).locks;
-    if (locks && typeof locks.request === 'function') {
-      await locks.request(QUEUE_LOCK_NAME, async () => {
-        const next = mutator(this.readQueue());
-        this.writeQueue(next);
-      });
-      return;
-    }
-    const next = mutator(this.readQueue());
-    this.writeQueue(next);
-  }
-
   private async requeueBatch(batch: QueuedEvent[]): Promise<void> {
     if (batch.length === 0) return;
-    await this.withQueueLock((current) => [...batch, ...current]);
-  }
-
-  private async fetchWithTimeout(
-    input: string,
-    init: RequestInit,
-    timeoutMs: number,
-  ): Promise<Response> {
-    if (typeof AbortController === 'undefined') {
-      return fetch(input, init);
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(input, { ...init, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
+    await this.queue.withLock((current) => [...batch, ...current]);
   }
 
   private attachLifecycleListeners(): void {
@@ -685,32 +502,26 @@ export class EodinAnalyticsWeb
 
   /**
    * H3: best-effort flush as the page is hidden / unloading. Uses
-   * `navigator.sendBeacon` so the request survives unload (regular fetch
-   * is cancelled). Synchronous read of the queue is fine here because
-   * unload races with visibilitychange and we just need to drain.
+   * `navigator.sendBeacon` (via `@eodin/web/internal`) so the request
+   * survives unload (regular fetch is cancelled).
    */
   private flushOnExit(): void {
     if (!this.isConfigured()) return;
-    if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return;
-    const queue = this.readQueue();
+    const queue = this.queue.read();
     if (queue.length === 0) return;
-    const batch = queue.splice(0, MAX_BATCH_SIZE);
-    try {
-      const blob = new Blob(
-        [JSON.stringify({ events: batch, api_key: this.apiKey })],
-        { type: 'application/json' },
-      );
-      const ok = navigator.sendBeacon(`${this.apiEndpoint}/events/collect`, blob);
-      if (ok) {
-        // sendBeacon does not let us authenticate via header; the server
-        // accepts the api_key body field as a fallback for unload contexts.
-        // The remaining queue (after splicing the batch) is persisted so
-        // the next session can resume any leftover events.
-        this.writeQueue(queue);
-        this.log(`flushOnExit beaconed ${batch.length} events`);
-      }
-    } catch (error) {
-      this.log(`flushOnExit failed: ${String(error)}`, true);
+    const batch = queue.slice(0, MAX_BATCH_SIZE);
+    const remaining = queue.slice(batch.length);
+    const ok = sendBeacon(`${this.apiEndpoint}/events/collect`, {
+      events: batch,
+      api_key: this.apiKey,
+    });
+    if (ok) {
+      // sendBeacon does not let us authenticate via header; the server
+      // accepts the api_key body field as a fallback for unload contexts.
+      // The remaining queue is persisted so the next session can resume any
+      // leftover events.
+      this.queue.write(remaining);
+      this.log(`flushOnExit beaconed ${batch.length} events`);
     }
   }
 
