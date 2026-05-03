@@ -310,9 +310,96 @@ Capacitor 의 `@eodin/capacitor` 는 native (iOS/Android) + web 동일 API 를 �
 
 ---
 
-### 3.5 Web (`@eodin/web`) — 별도 Auth 트랙 후 신설
+### 3.5 Web (`@eodin/web`)
 
-> 별도 Auth 트랙 완료 후 별도 패키지로 publish 예정 (본 SDK 화 프로젝트 범위 밖). 현재 Capacitor 의 web 분기로 대응 가능 (3.4.4 참조).
+순수 web 환경 (Vite / webpack / rollup / Next.js / Remix 등 bundler 사용 web app) 에서 EodinAnalytics 만 사용. Capacitor app 의 web build 는 `@eodin/capacitor` 가 내부적으로 `@eodin/web` 을 import 하므로 web 호스트 측 통합은 capacitor 만 따르면 됨 (3.4 참조). EodinAuth / `@eodin/web/server` SSR helper 는 별도 Auth 트랙.
+
+#### 3.5.1 의존성
+
+```bash
+npm install @eodin/web
+```
+
+#### 3.5.2 초기화
+
+```typescript
+// app entry (예: main.tsx, _app.tsx)
+import { EodinAnalytics, EodinEvent } from '@eodin/web';
+
+await EodinAnalytics.configure({
+  apiEndpoint: 'https://api.eodin.app/api/v1',
+  apiKey: '<your-api-key>',
+  appId: '<your-app-id>',
+  debug: process.env.NODE_ENV !== 'production',
+  autoTrackPageView: true,    // SPA 라우팅 자동 page_view (history API + popstate 구독)
+});
+```
+
+#### 3.5.3 사용 (positional API — 4채널 SDK parity)
+
+```typescript
+import { EodinAnalytics, EodinEvent } from '@eodin/web';
+
+// 표준 이벤트
+await EodinAnalytics.track(EodinEvent.PageView, { path: '/pricing' });
+await EodinAnalytics.track(EodinEvent.SignUp, { method: 'google' });
+
+// 자유 string custom event
+await EodinAnalytics.track('hero_cta_click', { variant: 'A' });
+
+// Identity
+EodinAnalytics.identify('user-id-from-host');
+EodinAnalytics.clearIdentity();
+
+// Status getters (TypeScript property style — Flutter / iOS parity)
+EodinAnalytics.deviceId;
+EodinAnalytics.userId;
+EodinAnalytics.sessionId;
+EodinAnalytics.attribution;
+EodinAnalytics.isEnabled;
+
+// Aggregate status
+const status = await EodinAnalytics.getStatus();
+console.log(status.queueSize, status.isOnline);
+
+// GDPR (4채널 setEnabled / requestDataDeletion 와 동일 의미)
+await EodinAnalytics.setEnabled(false);   // 큐 클리어 + 신규 이벤트 drop
+await EodinAnalytics.requestDataDeletion();
+
+// 명시 flush (보통 자동 — pagehide / visibilitychange 시 sendBeacon)
+await EodinAnalytics.flush();
+```
+
+#### 3.5.4 SSR / Next.js 주의
+
+`@eodin/web` 는 client-only — `localStorage` / `navigator` / `document` / `history` 의존. SSR 환경에서 server-side 코드는 `typeof window` 가드:
+
+```typescript
+// app/layout.tsx (Next.js)
+'use client';
+
+import { useEffect } from 'react';
+import { EodinAnalytics } from '@eodin/web';
+
+export default function ClientInit() {
+  useEffect(() => {
+    void EodinAnalytics.configure({
+      apiEndpoint: 'https://api.eodin.app/api/v1',
+      apiKey: process.env.NEXT_PUBLIC_EODIN_API_KEY!,
+      appId: 'your-app-id',
+      autoTrackPageView: true,
+    });
+  }, []);
+  return null;
+}
+```
+
+#### 3.5.5 의도적 미노출 (5채널 documented asymmetry)
+
+- ATT 메서드 (`requestTrackingAuthorization` / `getATTStatus` / `setDeviceATT`) — iOS-only OS 기능. web 에서 import 불가 (compile error)
+- Capacitor 의 `EodinDeeplink` — deferred deeplink 는 앱 전용. 웹 클릭 캡처는 `link.eodin.app/{service}/{id}` redirect URL 로 처리
+
+자세한 5채널 비교: `docs/web-sdk/parity-matrix-5ch.md`
 
 ---
 
@@ -414,9 +501,15 @@ val enabled = EodinAnalytics.isEnabled
 ```
 
 ```ts
-// Capacitor / web
+// Capacitor (Plugin Bridge — async)
+await EodinAnalytics.setEnabled({ enabled: false });
+const { enabled } = await EodinAnalytics.isEnabled();
+```
+
+```ts
+// Web (@eodin/web — Promise<void> + property getter)
 await EodinAnalytics.setEnabled(false);
-const enabled = await EodinAnalytics.isEnabled();
+const enabled = EodinAnalytics.isEnabled;
 ```
 
 **동작 보장**:
@@ -448,8 +541,13 @@ EodinAnalytics.requestDataDeletion { success ->
 ```
 
 ```ts
-// Capacitor / web — Promise<boolean>
-const ok = await EodinAnalytics.requestDataDeletion();
+// Capacitor — Promise<{ success: boolean }>
+const { success } = await EodinAnalytics.requestDataDeletion();
+```
+
+```ts
+// Web (@eodin/web) — Promise<{ success: boolean }>
+const { success } = await EodinAnalytics.requestDataDeletion();
 ```
 
 **중요**:

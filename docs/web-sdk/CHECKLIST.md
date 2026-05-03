@@ -16,7 +16,7 @@ PRD 참고: `./PRD.md`
 | Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
 | Phase 2 (Capacitor 어댑터화) | ✅ 완료 | web.ts 729→525 lines (-28%). sdk-web `/internal` subpath. capacitor rollup external + IIFE globals. H1/H2/H3 모두 closure |
 | Phase 3 (Public surface) | ✅ 완료 | EodinAnalytics 본체 + GDPR + autoTrackPageView + globalThis pin (H1) + parity matrix 산출. 7 suites / 80 tests |
-| Phase 4 (테스트 + 문서) | ⏳ 시작 전 | jest + TypeDoc + integration-guide.md 갱신 |
+| Phase 4 (테스트 + 문서) | ✅ 완료 | page-view-tracker test 8개 추가 (총 88 tests). TypeDoc 검증 internal 미노출. integration-guide §3.5 + §6.1 분리. README 갱신 |
 | Phase 5 (베타 publish) | ⏳ 시작 전 | `@eodin/web@1.0.0-beta.1` npm publish + git tag + kidstopia vendor tgz 사전 회귀 검증 (G1) |
 
 ### 산출 문서 (예정)
@@ -190,25 +190,36 @@ PRD 참고: `./PRD.md`
 
 ## Phase 4: 테스트 + 문서
 
-### 4.1 Unit test 보강
-- [ ] EodinAnalytics: configure / track / identify / clearIdentity / flush 시나리오
-- [ ] Attribution / Session: setAttribution / startSession / endSession 시나리오
-- [ ] Status getters (M6 property style): `EodinAnalytics.deviceId / userId / sessionId / attribution / isEnabled` getter 반환값 검증 + aggregate `await getStatus()` 검증
-- [ ] **GDPR (PRD §5 surface)**: setEnabled(false) → 신규 이벤트 drop / 큐 보존, isEnabled getter, requestDataDeletion → 로컬 큐 + 식별자 클리어 검증
-- [ ] autoTrackPageView: history API navigation / popstate / hashchange 시 자동 page_view 발생 검증
-- [ ] EndpointValidator: HTTPS only enforcement (4채널과 동일 케이스)
-- [ ] EventQueue: idempotent enqueue / at-least-once / bounded growth / cold-start (localStorage 직접 set 후 재시작 시뮬레이션)
+### 4.1 Unit test 보강 ✅
+- [x] EodinAnalytics: configure / track / identify / clearIdentity / flush 시나리오 (Phase 3 신규)
+- [x] Attribution / Session: setAttribution / startSession / endSession (Phase 3)
+- [x] Status getters (M6 property): deviceId / userId / sessionId / attribution / isEnabled + aggregate getStatus (Phase 3)
+- [x] **GDPR**: setEnabled(false) 큐 클리어 / 신규 drop / requestDataDeletion deviceId 재발급 + opt-out 보존 (Phase 3)
+- [x] **autoTrackPageView**: history.pushState / replaceState / popstate / hashchange 4트리거 + detach 후 미발생 + H3 SPA 라우터 충돌 가드 + idempotent / 두 번 attach (Phase 4 신규 8 cases)
+- [x] EndpointValidator: HTTPS only (Phase 1.2)
+- [x] EventQueue: idempotent / at-least-once / bounded growth / quota halving (Phase 1.2 + Phase 2 H2 보강)
 
 ### 4.2 Integration test (선택)
 - [ ] `api.eodin.app` mock server 띄우고 e2e — 메인 PRD `Phase 1.7` 의 E2E 보류 정책과 동일하게 본 phase 도 보류 가능
 
-### 4.3 API 문서
-- [ ] `npm run docs` (TypeDoc) — 산출 `docs/api/`
-- [ ] internal/* 미노출 재확인
-- [ ] README.md 완성 — Quick Start, configure, track, GDPR, browser 호환성
+### 4.3 API 문서 ✅
+- [x] `npm -w @eodin/web run docs` (TypeDoc) — 산출 `packages/sdk-web/docs/api/`
+- [x] internal/* 미노출 확인 — `EventQueue / validateEndpoint / fetchWithTimeout / sendBeacon` 모두 docs/api 0 hit
+- [x] `packages/sdk-web/README.md` 갱신 — Phase 1.1 placeholder 제거, full surface 예시 + 의도적 비대칭 (ATT / Deeplink) 명시
+- [x] root `README.md` 의 Packages 표에 `@eodin/web` 행 추가 + Quick Start Web 섹션 추가
 
-### 4.4 Integration guide 갱신
-- [ ] `docs/guide/integration-guide.md` 에 "Web (`@eodin/web`)" 섹션 추가 — 일반 채택 절차만 (특정 호스트 명시 X)
+### 4.4 Integration guide 갱신 ✅
+- [x] `docs/guide/integration-guide.md` §3.5 Web 섹션 갱신 — 의존성 / 초기화 / positional API 사용 / SSR Next.js / 의도적 미노출
+- [x] §6.1 GDPR opt-out — Capacitor (object arg / async) 와 Web (positional arg / property getter) 분리 (Phase 4 review H1)
+- [x] §6.2 requestDataDeletion — Capacitor 와 Web 분리
+
+### 4.5 코드 리뷰 ✅
+- [x] senior-code-reviewer Grade C+ (C1+H1-H3 적용 후 B+ 회복)
+  - **C1 즉시 적용**: page-view-tracker.test.ts:64 의 `as never` 캐스팅 → `typeof history.pushState` 정합. 신규 8 tests 실제 실행 (TS2339 컴파일 에러 해소)
+  - **H1 즉시 적용**: integration-guide §6.1 / §6.2 의 Capacitor / Web 묶음 분리 (async vs property getter 모순 해소)
+  - **H2 즉시 적용**: `packages/sdk-web/README.md` Phase 1.1 placeholder 제거 + full surface 명시
+  - **H3 즉시 적용**: root `README.md` 5채널 표에 `@eodin/web` 행 추가 + Quick Start
+- [x] 산출: `web-sdk/reviews/phase-4-code-review.md`
 
 ---
 

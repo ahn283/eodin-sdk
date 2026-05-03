@@ -10,6 +10,7 @@ Mobile SDK for Eodin services — deferred deep linking, analytics, and identity
 | [`packages/sdk-ios`](packages/sdk-ios/) | iOS / macOS | SwiftPM (this repo URL + tag) |
 | [`packages/sdk-android`](packages/sdk-android/) | Android | [`app.eodin:sdk`](https://search.maven.org/) on Maven Central |
 | [`packages/capacitor`](packages/capacitor/) | Capacitor (Web/iOS/Android) | [`@eodin/capacitor`](https://www.npmjs.com/package/@eodin/capacitor) on npm |
+| [`packages/sdk-web`](packages/sdk-web/) | Web (browser) | [`@eodin/web`](https://www.npmjs.com/package/@eodin/web) on npm |
 
 ## Quick Start
 
@@ -48,6 +49,24 @@ implementation("app.eodin:sdk:2.0.0")
 
 ```bash
 npm install @eodin/capacitor
+```
+
+### Web
+
+```bash
+npm install @eodin/web
+```
+
+```typescript
+import { EodinAnalytics, EodinEvent } from '@eodin/web';
+
+await EodinAnalytics.configure({
+  apiEndpoint: 'https://api.eodin.app/api/v1',
+  apiKey: '<your-api-key>',
+  appId: '<your-app-id>',
+  autoTrackPageView: true,
+});
+EodinAnalytics.track(EodinEvent.AppOpen);
 ```
 
 ## Documentation
