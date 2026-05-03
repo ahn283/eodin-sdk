@@ -69,17 +69,20 @@ PRD 참고: `./PRD.md`
 
 ## Phase 1: 패키지 신설 (`packages/sdk-web/`)
 
-### 1.1 디렉토리 + toolchain
-- [ ] **(M1 — Phase 1.0 review 권고) root `package.json` 의 `workspaces` 배열에 `packages/sdk-web` 추가** — 누락 시 capacitor 의 `workspace:*` 참조가 Phase 2.1 에서 silent 하게 깨질 수 있음
-- [ ] **(L1 — Phase 1.0 review 권고) root `package-lock.json` commit 정책 결정** — sdk-web 추가로 dep tree 가 커지므로 본 시점에 결정 (현재 .gitignore 가 무시 중. workspace 환경 best practice = root lock commit)
-- [ ] `packages/sdk-web/` 디렉토리 생성
-- [ ] `package.json` (name: `@eodin/web`, version: `1.0.0-beta.1`, main/module/types 정의, peer/dev deps)
-- [ ] `tsconfig.json` (target: ES2020, module: ESNext, declaration: true)
-- [ ] `rollup.config.mjs` (cjs + esm + d.ts) — `@eodin/capacitor` 와 동일 구조 차용
-- [ ] `jest.config.js` (jsdom env — browser API 사용)
-- [ ] `typedoc.json` (entryPoints: `src/index.ts` only, internal 제외)
-- [ ] `.gitignore` (dist/, node_modules/)
-- [ ] `README.md` 초안
+### 1.1 디렉토리 + toolchain ✅
+- [x] **(M1 — Phase 1.0 review 권고) root `package.json` 의 `workspaces` 배열에 `packages/sdk-web` 추가**
+- [x] **(L1 — Phase 1.0 review 권고) root `package-lock.json` commit 정책 결정** — root .gitignore 의 `package-lock.json` 줄을 `packages/*/package-lock.json` 으로 교체. root lock 은 commit 함
+- [x] `packages/sdk-web/` 디렉토리 생성 + `src/index.ts` placeholder
+- [x] `package.json` — name `@eodin/web`, version `1.0.0-beta.1`, dual export (cjs+esm), files allowlist
+- [x] `tsconfig.json` — strict, lib: dom/es2020, target es2017
+- [x] `rollup.config.mjs` — esm input → cjs output (capacitor 와 달리 IIFE / external peer 없음)
+- [x] `jest.config.js` — testEnvironment: jsdom
+- [x] `typedoc.json` — entryPoints: src/index.ts only, exclude src/internal/**
+- [x] `.gitignore` (standalone clone 시나리오 self-contained)
+- [x] `README.md` 초안 + Phase 1.1 placeholder 경고
+- [x] **(Phase 1.1 review M1) `packages/sdk-web/LICENSE` 추가** — root LICENSE 복사
+- [x] 코드 리뷰: senior-code-reviewer Grade A−. CRITICAL 0 / HIGH 1 (H1: dual-package hazard — Phase 3 진입 전 결정) / MEDIUM 3 / LOW 4 / INFO 3. 즉시 적용: M1 LICENSE / L4 README placeholder 경고. H1 은 Phase 3.0 결정 항목으로 등록. 후속 ticket: M2 / L1 / L2 / L3 / I1 / I3 / capacitor LICENSE
+- [x] 산출: `web-sdk/reviews/phase-1.1-code-review.md`
 
 ### 1.2 Internal 모듈 추출 (`packages/capacitor/src/web.ts` source)
 - [ ] `src/internal/event-queue.ts` — localStorage queue (capacitor web.ts 에서 추출)
@@ -119,6 +122,13 @@ PRD 참고: `./PRD.md`
 ---
 
 ## Phase 3: Public Surface 확정
+
+### 3.0 dual-package hazard 결정 (Phase 1.1 review H1) — Phase 3 코드 작성 전 필수
+- [ ] EodinAnalytics 가 stateful singleton 일 예정 → 현 dual `exports` (cjs/esm) 가 모듈 인스턴스 분리 위험. 다음 중 택1 결정 + 결정 로그 기록:
+  - (a) ESM-only 전환 — `package.json` 에 `"type": "module"`, `exports.require` 제거, `main` 제거 (추천)
+  - (b) state 를 `globalThis.__eodinAnalytics__` 에 pin
+  - (c) stateless façade + global store 분리 설계
+- [ ] 결정 후 `package.json` 적용 + 본 CHECKLIST 갱신
 
 ### 3.1 EodinAnalytics (PRD §5 의 모든 surface)
 - [ ] `src/analytics/eodin-analytics.ts` — configure / track (positional) / identify / clearIdentity / flush
@@ -210,3 +220,9 @@ PRD 참고: `./PRD.md`
 - **C3 — backend `apiKeyAuth` origin allowlist 강화** — `@eodin/web` 채택 시점 전까지 `apps/api/src/...` 의 apiKeyAuth 미들웨어가 `Origin` / `Referer` 검증을 추가해야 함. 별도 ticket 으로 등록 (본 SDK 트랙 외)
 - **M5 — Capacitor 분산 getter 보강** — `packages/capacitor/src/definitions.ts` 에 `getDeviceId / getUserId / getSessionId / getAttribution` 추가 + native bridge 구현. 4채널 status getter parity 회복. 본 SDK 트랙 외 별도 ticket
 - F1 — `apps/web` (link.eodin.app) 이 `@eodin/web` 채택 시 server-side `/events/click` + client-side `/events/collect` 이중 logging 정의 필요. 채택 트랙에서 다룸
+- **(Phase 1.1 review M2) Phase 5 publish 시점에 `prepublishOnly` 제거 + CI artifact publish 패턴 검토** — `changesets` / `release-please` 도입 시점과 묶임
+- **(Phase 1.1 review L3) Phase 5 publish 시점에 keywords 보강** — `event-tracking`, `telemetry`, `browser`, `typescript` 추가 검토
+- **(Phase 1.1 review I3) IIFE / unpkg use-case 가 생기면 rollup output 추가** — 현재는 npm install 경유 사용만 가정
+- **(Phase 1.1 review L2) PRD §6 또는 결정 로그에 internal 정책 차이 한 줄 추가** — capacitor=single file (`web.ts`) vs sdk-web=folder (`internal/**`)
+- **(Phase 1.1 review I1) 결정 로그에 5채널 independent versioning 정책 한 줄** — web 1.x 신생 / mobile 2.x 마이그
+- **(Phase 1.1 review M1 후속) `packages/capacitor/LICENSE` 추가** — sdk-web 과 동일하게 root LICENSE 복사. 본 SDK 트랙 외 별도 chore commit

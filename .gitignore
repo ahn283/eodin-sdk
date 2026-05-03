@@ -16,7 +16,9 @@ yarn-error.log*
 # ── Node / Capacitor / Web ────────────────────────────
 node_modules/
 dist/
-package-lock.json
+# package-lock.json: workspace root 만 commit (재현 가능 install).
+# subpackage standalone npm install 시 생성되는 lockfile 만 무시.
+packages/*/package-lock.json
 .npm/
 .yarn/
 .pnp.*

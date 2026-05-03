@@ -1,0 +1,19 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs/api",
+  "name": "@eodin/web",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "exclude": [
+    "src/__tests__/**",
+    "src/internal/**"
+  ],
+  "categorizeByGroup": true,
+  "githubPages": false,
+  "navigationLinks": {
+    "GitHub": "https://github.com/ahn283/eodin-sdk"
+  }
+}

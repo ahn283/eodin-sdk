@@ -1,0 +1,13 @@
+# sdk-web 가 standalone 으로 clone 되는 경우를 위한 self-contained .gitignore.
+# monorepo root .gitignore 와 일부 중복은 의도적.
+
+node_modules/
+dist/
+
+# Generated TypeDoc API docs (`npm run docs`)
+docs/api/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/

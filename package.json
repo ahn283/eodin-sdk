@@ -4,7 +4,8 @@
   "private": true,
   "description": "Eodin SDK monorepo. npm packages are managed via workspaces. Flutter (sdk-flutter), iOS (sdk-ios), Android (sdk-android) packages are managed by their own toolchains.",
   "workspaces": [
-    "packages/capacitor"
+    "packages/capacitor",
+    "packages/sdk-web"
   ],
   "engines": {
     "npm": ">=7"
