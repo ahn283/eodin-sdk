@@ -621,7 +621,7 @@ const { success } = await EodinAnalytics.requestDataDeletion();
 ### 7.3 Debug verification
 
 - **Eodin debug logs**: `configure(debug: true)` 후 콘솔에서 `[EodinAnalytics]` prefix 확인
-- **Eodin staging API**: `apiEndpoint: 'https://api-staging.eodin.app/api/v1'` 로 staging 검증 후 production 전환
+- **Eodin staging API**: 현재 미운영 (`api-staging.eodin.app` DNS 미등록). staging 검증이 필요하면 (a) 호스트 앱의 dev / staging build 에서 production endpoint + 별도 dev `apiKey` 사용 또는 (b) 로컬 backend (`http://localhost:3005/api/v1`) 띄워서 검증. 이후 staging 도메인 라이브 시 본 항목 갱신
 - **Firebase DebugView** (dual-tracking 시): 별도 GA4 검증 매트릭스
 
 ---
