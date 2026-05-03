@@ -48,6 +48,7 @@ PRD 참고: `./PRD.md`
 
 ### 1.0.1 root `package.json` 신설
 - [ ] `package.json` (root) 신설 — `name: "eodin-sdk-monorepo"`, `private: true`, `workspaces: ["packages/*"]`
+- [ ] **L9 — `engines: { "npm": ">=7" }` 명시** — `workspace:*` protocol 은 npm 7+ 부터. CI / dev 버전 회귀 가드
 - [ ] `.gitignore` root level 점검 — 각 패키지의 `node_modules` / `dist` 가 무시되는지 확인 (이미 패키지별 .gitignore 있음)
 
 ### 1.0.2 capacitor 의존성 protocol 변경 사전 점검
@@ -116,7 +117,8 @@ PRD 참고: `./PRD.md`
 ### 3.1 EodinAnalytics (PRD §5 의 모든 surface)
 - [ ] `src/analytics/eodin-analytics.ts` — configure / track (positional) / identify / clearIdentity / flush
 - [ ] **Attribution + Sessions**: setAttribution / startSession / endSession
-- [ ] **Status getters**: getDeviceId / getUserId / getSessionId / getAttribution / getStatus
+- [ ] **Status getters — TypeScript property style (M6)**: `EodinAnalytics.deviceId / userId / sessionId / attribution / isEnabled` 모두 `static get` 정의. caller 측 `EodinAnalytics.deviceId` 형태로 access. Flutter / iOS property 와 시각적 정합
+- [ ] **Aggregate `getStatus()`**: 유일하게 method form. Promise / 동기 반환은 Phase 3 에서 결정 (capacitor 와의 호환성 고려)
 - [ ] **GDPR (4채널 실제 메서드명)**: setEnabled / isEnabled / requestDataDeletion (Phase 1.7 surface 와 동일)
 - [ ] auto-flush — `pagehide` / `visibilitychange` 이벤트에서 sendBeacon
 - [ ] **autoTrackPageView (PRD §5 명시)**: `EodinAnalytics.configure({ autoTrackPageView: true })` 시 internal page-view tracker 가 history API + popstate 구독. default false
@@ -131,6 +133,12 @@ PRD 참고: `./PRD.md`
 - [ ] EodinAnalytics 메서드 시그니처 — Flutter / iOS / Android / Capacitor / Web 5개 비교 표 작성
 - [ ] EodinEvent enum 값 wire string 동일성 — 5채널 모두 grep 으로 비교
 - [ ] GDPR surface — Phase 1.7 4채널 surface 와 parity (web 환경에서 의미 없는 항목은 명시적 no-op + 문서화)
+- [ ] **Documented asymmetry 명시** (PRD §5.1 표 + 본 트랙 결정):
+  - ATT 메서드 (iOS-only) — web 의도적 미노출
+  - autoTrackPageView (web 고유)
+  - status getter property vs method (Flutter/iOS/Web property — Android method form, Kotlin/Java interop 관습)
+  - Capacitor 의 분산 getter 누락 (M5 — 별도 ticket)
+  - aggregate `getStatus()` vs 분산 getter 매핑 (M7 — 양쪽 모두 의미 있어 본 SDK 는 둘 다 노출, 4채널은 분산만 / capacitor 는 aggregate 만)
 - [ ] 산출: `web-sdk/parity-matrix-5ch.md`
 
 ---
@@ -140,7 +148,7 @@ PRD 참고: `./PRD.md`
 ### 4.1 Unit test 보강
 - [ ] EodinAnalytics: configure / track / identify / clearIdentity / flush 시나리오
 - [ ] Attribution / Session: setAttribution / startSession / endSession 시나리오
-- [ ] Status getters: getDeviceId / getUserId / getSessionId / getAttribution / getStatus 반환값 검증
+- [ ] Status getters (M6 property style): `EodinAnalytics.deviceId / userId / sessionId / attribution / isEnabled` getter 반환값 검증 + aggregate `await getStatus()` 검증
 - [ ] **GDPR (PRD §5 surface)**: setEnabled(false) → 신규 이벤트 drop / 큐 보존, isEnabled getter, requestDataDeletion → 로컬 큐 + 식별자 클리어 검증
 - [ ] autoTrackPageView: history API navigation / popstate / hashchange 시 자동 page_view 발생 검증
 - [ ] EndpointValidator: HTTPS only enforcement (4채널과 동일 케이스)
@@ -194,4 +202,5 @@ PRD 참고: `./PRD.md`
 - `@eodin/web/server` subpath (Next.js SSR) — Auth 트랙
 - publish CI/CD 자동화 — 메인 PRD `Phase 0.5.6 / Phase 1.2` 와 묶임 (사용자 토큰 대기)
 - **C3 — backend `apiKeyAuth` origin allowlist 강화** — `@eodin/web` 채택 시점 전까지 `apps/api/src/...` 의 apiKeyAuth 미들웨어가 `Origin` / `Referer` 검증을 추가해야 함. 별도 ticket 으로 등록 (본 SDK 트랙 외)
+- **M5 — Capacitor 분산 getter 보강** — `packages/capacitor/src/definitions.ts` 에 `getDeviceId / getUserId / getSessionId / getAttribution` 추가 + native bridge 구현. 4채널 status getter parity 회복. 본 SDK 트랙 외 별도 ticket
 - F1 — `apps/web` (link.eodin.app) 이 `@eodin/web` 채택 시 server-side `/events/click` + client-side `/events/collect` 이중 logging 정의 필요. 채택 트랙에서 다룸
