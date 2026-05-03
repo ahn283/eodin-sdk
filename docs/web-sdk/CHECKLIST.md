@@ -12,7 +12,7 @@ PRD 참고: `./PRD.md`
 | Phase | 상태 | 비고 |
 |---|---|---|
 | Phase 0 (사전 정렬) | ✅ 완료 | 메인 PRD / `web-sdk-targets.md` / 메인 CHECKLIST 정합성 갱신 |
-| Phase 1.0 (workspace 도입) | ⏳ 시작 전 | root `package.json` + npm workspaces. capacitor `dependencies` 에 `@eodin/web: workspace:*` 추가. 4채널 빌드 회귀 점검 |
+| Phase 1.0 (workspace 도입) | ✅ 완료 | root `package.json` 신설, capacitor 빌드/테스트 64/64 통과, code review Grade A |
 | Phase 1 (패키지 신설) | ⏳ 시작 전 | `packages/sdk-web/` 디렉토리 + 빌드 toolchain + internal 모듈 추출 |
 | Phase 2 (Capacitor 어댑터화) | ⏳ 시작 전 | `packages/capacitor/src/web.ts` 가 `@eodin/web` 을 import 하도록 전환 |
 | Phase 3 (Public surface) | ⏳ 시작 전 | EodinAnalytics public API 확정 + 5채널 parity 검증 |
@@ -44,28 +44,34 @@ PRD 참고: `./PRD.md`
 
 ---
 
-## Phase 1.0: npm workspaces 도입 (D1 — publish 순서 의존성 해소)
+## Phase 1.0: npm workspaces 도입 (D1 — publish 순서 의존성 해소) ✅
 
 ### 1.0.1 root `package.json` 신설
-- [ ] `package.json` (root) 신설 — `name: "eodin-sdk-monorepo"`, `private: true`, `workspaces: ["packages/*"]`
-- [ ] **L9 — `engines: { "npm": ">=7" }` 명시** — `workspace:*` protocol 은 npm 7+ 부터. CI / dev 버전 회귀 가드
-- [ ] `.gitignore` root level 점검 — 각 패키지의 `node_modules` / `dist` 가 무시되는지 확인 (이미 패키지별 .gitignore 있음)
+- [x] `package.json` (root) 신설 — `name: "eodin-sdk-monorepo"`, `private: true`, `workspaces: ["packages/capacitor"]` (sdk-flutter/ios/android 는 npm 무관이라 명시 list 사용. Phase 1.1 에서 sdk-web 추가)
+- [x] **L9 — `engines: { "npm": ">=7" }` 명시** — `workspace:*` protocol 은 npm 7+ 부터. CI / dev 버전 회귀 가드
+- [x] `.gitignore` root level 점검 — 각 패키지의 `node_modules` / `dist` 가 무시되는지 확인 (이미 root .gitignore 가 cover)
 
 ### 1.0.2 capacitor 의존성 protocol 변경 사전 점검
-- [ ] 현재 `packages/capacitor/package.json` 의 dependencies / peerDependencies 구조 확인
-- [ ] `npm install` (root) 시 4채널 패키지 모두 설치 / 빌드 정상 여부 (capacitor / sdk-flutter pubspec / sdk-ios SwiftPM / sdk-android gradle 은 npm 영향 없음 — capacitor 만 영향)
-- [ ] capacitor 의 기존 `npm run build` / `npm test` workspace 모드에서 정상 동작 확인
+- [x] `packages/capacitor/package.json` 의 dependencies / peerDependencies 구조 확인 (`peerDependencies: @capacitor/core`, `dependencies` 블록 부재)
+- [x] root `npm install` 정상 — `node_modules/@eodin/capacitor` symlink 생성 확인
+- [x] capacitor 의 기존 `npm run build` / `npm test` workspace 모드에서 정상 동작 확인
 
 ### 1.0.3 4채널 회귀 가드
-- [ ] capacitor 빌드: `npm -w @eodin/capacitor run build`
-- [ ] capacitor 테스트: `npm -w @eodin/capacitor test`
-- [ ] sdk-flutter / sdk-ios / sdk-android 는 npm 무관 — 점검 불필요
+- [x] capacitor 빌드: `npm -w @eodin/capacitor run build` 정상
+- [x] capacitor 테스트: `npm -w @eodin/capacitor test` 64/64 통과
+- [x] sdk-flutter / sdk-ios / sdk-android 는 npm 무관 — 점검 불필요
+
+### 1.0.4 코드 리뷰
+- [x] senior-code-reviewer 실행 — Grade A. CRITICAL 0 / HIGH 0 / MEDIUM 1 (M1: Phase 1.1 진입 시 workspaces 배열 갱신 가드) / LOW 2 (L1: package-lock.json 정책 / L2: minor) / INFO 2. M1 / L1 후속을 Phase 1.1 첫 항목으로 반영
+- [x] 산출: `web-sdk/reviews/phase-1.0-code-review.md`
 
 ---
 
 ## Phase 1: 패키지 신설 (`packages/sdk-web/`)
 
 ### 1.1 디렉토리 + toolchain
+- [ ] **(M1 — Phase 1.0 review 권고) root `package.json` 의 `workspaces` 배열에 `packages/sdk-web` 추가** — 누락 시 capacitor 의 `workspace:*` 참조가 Phase 2.1 에서 silent 하게 깨질 수 있음
+- [ ] **(L1 — Phase 1.0 review 권고) root `package-lock.json` commit 정책 결정** — sdk-web 추가로 dep tree 가 커지므로 본 시점에 결정 (현재 .gitignore 가 무시 중. workspace 환경 best practice = root lock commit)
 - [ ] `packages/sdk-web/` 디렉토리 생성
 - [ ] `package.json` (name: `@eodin/web`, version: `1.0.0-beta.1`, main/module/types 정의, peer/dev deps)
 - [ ] `tsconfig.json` (target: ES2020, module: ESNext, declaration: true)
