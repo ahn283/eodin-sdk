@@ -84,12 +84,15 @@ PRD 참고: `./PRD.md`
 - [x] 코드 리뷰: senior-code-reviewer Grade A−. CRITICAL 0 / HIGH 1 (H1: dual-package hazard — Phase 3 진입 전 결정) / MEDIUM 3 / LOW 4 / INFO 3. 즉시 적용: M1 LICENSE / L4 README placeholder 경고. H1 은 Phase 3.0 결정 항목으로 등록. 후속 ticket: M2 / L1 / L2 / L3 / I1 / I3 / capacitor LICENSE
 - [x] 산출: `web-sdk/reviews/phase-1.1-code-review.md`
 
-### 1.2 Internal 모듈 추출 (`packages/capacitor/src/web.ts` source)
-- [ ] `src/internal/event-queue.ts` — localStorage queue (capacitor web.ts 에서 추출)
-- [ ] `src/internal/network-client.ts` — fetch + sendBeacon (capacitor web.ts 에서 추출)
-- [ ] `src/internal/endpoint-validator.ts` — HTTPS only (capacitor web.ts 에서 추출, Phase 1.6 S8 parity)
-- [ ] `src/internal/storage.ts` — localStorage / sessionStorage 추상화 (테스트 용이성)
-- [ ] 각 모듈 jest unit test (capacitor 의 `__tests__/web.test.ts` 에서 분리해 가져옴)
+### 1.2 Internal 모듈 추출 (`packages/capacitor/src/web.ts` source) ✅
+- [x] `src/internal/event-queue.ts` — `EventQueue` class (read/write/withLock/quota handling/maxSize trim)
+- [x] `src/internal/network-client.ts` — `fetchWithTimeout` / `sendBeacon` / `isOnline`
+- [x] `src/internal/endpoint-validator.ts` — `validateEndpoint` (메인 SDK Phase 1.6 S8 parity)
+- [x] `src/internal/storage.ts` — `STORAGE_KEYS` / `readStorage` / `writeStorage` / `removeStorage` / `isQuotaError`
+- [x] `src/internal/uuid.ts` — `crypto.randomUUID` + RFC4122 v4 fallback
+- [x] 각 모듈 jest unit test (storage / uuid / endpoint-validator / event-queue / network-client) — **5 suites / 43 tests 통과**
+- [x] 코드 리뷰: senior-code-reviewer Grade A. CRITICAL 0 / HIGH 0 / MEDIUM 3 / LOW 4 / INFO 5. 즉시 적용: M2 (storage 헬퍼 일관성) + L1 (quota halving 결정적 검증). 후속: M1 (quota drop 관측성) / M3 (runtime validation) / I1 / I2 는 Phase 3 에서 처리
+- [x] 산출: `web-sdk/reviews/phase-1.2-code-review.md`
 
 ### 1.3 EodinEvent enum (web)
 - [ ] `src/eodin-event.ts` — 4채널과 동일 wire string (Flutter `eodin_event.dart` / iOS `EodinEvent.swift` / Android `EodinEvent.kt` / Capacitor `eodin-event.ts` 와 cross-check)
