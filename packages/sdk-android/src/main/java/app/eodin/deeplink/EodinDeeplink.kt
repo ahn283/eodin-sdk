@@ -87,13 +87,7 @@ object EodinDeeplink {
 
         Thread {
             try {
-                val deviceId = DeviceFingerprint.generate(context)
-
-                if (BuildConfig.DEBUG) {
-                    android.util.Log.d(TAG, "Checking deferred params with deviceId: $deviceId")
-                }
-
-                val url = URL("$endpoint/deferred-params?deviceId=$deviceId&service=$serviceId")
+                val url = URL(buildDeferredUrl(context, endpoint))
                 val connection = url.openConnection() as HttpURLConnection
 
                 connection.apply {
@@ -179,13 +173,7 @@ object EodinDeeplink {
 
         val context = applicationContext!!
         val endpoint = apiEndpoint!!
-        val deviceId = DeviceFingerprint.generate(context)
-
-        if (BuildConfig.DEBUG) {
-            android.util.Log.d(TAG, "Checking deferred params with deviceId: $deviceId")
-        }
-
-        val url = URL("$endpoint/deferred-params?deviceId=$deviceId&service=$serviceId")
+        val url = URL(buildDeferredUrl(context, endpoint))
         val connection = url.openConnection() as HttpURLConnection
 
         try {
@@ -236,6 +224,27 @@ object EodinDeeplink {
         } finally {
             connection.disconnect()
         }
+    }
+
+    /**
+     * Build the deferred-params URL: use the Play Install Referrer click token for
+     * a deterministic match when present (Phase 3, F-3), else fall back to the
+     * device fingerprint. Runs on the calling background thread.
+     */
+    private fun buildDeferredUrl(context: Context, endpoint: String): String {
+        val referrer = InstallReferrerReader.fetch(context)
+        // Uri.Builder encodes keys/values (service id, referrer) automatically.
+        val builder = android.net.Uri.parse("$endpoint/deferred-params").buildUpon()
+            .appendQueryParameter("service", serviceId)
+        if (InstallReferrerReader.hasEodinClickId(referrer)) {
+            if (BuildConfig.DEBUG) {
+                android.util.Log.d(TAG, "Deferred via Install Referrer (deterministic)")
+            }
+            builder.appendQueryParameter("installReferrer", referrer)
+        } else {
+            builder.appendQueryParameter("deviceId", DeviceFingerprint.generate(context))
+        }
+        return builder.build().toString()
     }
 
     private fun readResponse(connection: HttpURLConnection): String {

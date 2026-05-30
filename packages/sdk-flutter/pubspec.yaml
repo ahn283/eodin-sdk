@@ -20,6 +20,8 @@ dependencies:
   connectivity_plus: ^6.0.4
   hive: ^2.2.3
   path_provider: ^2.1.0
+  # Play Install Referrer — deterministic deferred deep link match on Android (Phase 3, F-3)
+  android_play_install_referrer: ^0.4.0
 
 dev_dependencies:
   flutter_test:

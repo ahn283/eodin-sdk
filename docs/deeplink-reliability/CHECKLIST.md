@@ -185,12 +185,14 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] `saveDeferredParams` 에 clickId 포함 → row 저장
 - [x] 코드리뷰 PASS(B) — M3 머지 / L2 테스트 / M1·I1 신뢰경계 문서화 반영
 
-### 3.3 SDK 회수 (eodin-sdk) — 앱 출시 필요(Phase 4 와 묶음)
-- [ ] `com.android.installreferrer:installreferrer` — sdk-android + capacitor-android
-- [ ] **Flutter**: `android_play_install_referrer` 플러그인 회수 (D3)
-- [ ] `InstallReferrerClient.getInstallReferrer()` → `eodin_cid` 추출 → `GET ?installReferrer=&service=` 결정론
-- [ ] clickId 없으면 기존 경로 fallback. public surface 불변
-- [ ] 연결 실패/타이밍 backoff
+### 3.3 SDK 회수 (eodin-sdk) — ✅ 코드/리뷰 완료 · **Android 빌드 CI·앱 출시 대기**
+- [x] `com.android.installreferrer:installreferrer:2.2` — sdk-android + capacitor-android (`InstallReferrerReader.kt`, CountDownLatch 동기 회수 + 캐시)
+- [x] **Flutter**: `android_play_install_referrer` 회수 (`_readInstallReferrer`, Platform.isAndroid 가드) — analyze + 17 테스트 통과
+- [x] eodin_cid 있으면 `?service=&installReferrer=` 결정론, 없으면 deviceId fingerprint fallback. public surface 불변(SemVer minor)
+- [x] iOS/Capacitor-iOS 미변경(Android 전용, iOS는 Phase 4)
+- [x] 코드리뷰 PASS(B) — H1(메인스레드 가드)/H2(캐시 무한재시도)/M1(Uri.Builder 인코딩)/M2/L1/L2 반영. M3(CHANGELOG)·L3(버전)는 release-prep
+- [ ] ⚠️ **빌드**: Flutter ✅ / **Android(sdk+capacitor) 로컬 빌드 불가(JRE 없음) → CI 검증 필수**
+- [ ] **앱 출시**(Phase 4와 묶음) 후 실제 동작
 
 ### 3.4 검증
 - [ ] 단위(referrer 파싱 / 백엔드 결정론 조회+fallback) + Play 내부 테스트 트랙 E2E (클릭→설치→회수→딥링크)

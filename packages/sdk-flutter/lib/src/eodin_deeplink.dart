@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:android_play_install_referrer/android_play_install_referrer.dart';
 import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
@@ -98,21 +99,29 @@ class EodinDeeplink {
       throw const NoParamsFoundException();
     }
 
-    // Generate device fingerprint
-    final deviceId = await _generateDeviceId();
+    // Android: prefer the Play Install Referrer for a deterministic match
+    // (deeplink-reliability Phase 3, F-3). Falls back to fingerprint when the
+    // referrer is unavailable (non-Play install) or carries no eodin token.
+    final installReferrer = await _readInstallReferrer();
+
+    // Generate device fingerprint only when there's no deterministic token.
+    final deviceId = installReferrer == null ? await _generateDeviceId() : null;
 
     if (kDebugMode) {
-      print('[EodinDeeplink] Checking deferred params for device: $deviceId');
+      print(
+        installReferrer != null
+            ? '[EodinDeeplink] Checking deferred params via Install Referrer (deterministic)'
+            : '[EodinDeeplink] Checking deferred params for device: $deviceId',
+      );
     }
 
     // Call API
     final client = _httpClient ?? http.Client();
     try {
       final uri = Uri.parse('$_apiEndpoint/deferred-params').replace(
-        queryParameters: {
-          'deviceId': deviceId,
-          'service': _service,
-        },
+        queryParameters: installReferrer != null
+            ? {'service': _service!, 'installReferrer': installReferrer}
+            : {'deviceId': deviceId!, 'service': _service!},
       );
 
       final response = await client.get(
@@ -170,6 +179,23 @@ class EodinDeeplink {
         client.close();
       }
     }
+  }
+
+  /// Read the Play Install Referrer on Android; returns it only when it carries
+  /// the eodin click token (`eodin_cid=`). Null otherwise (iOS, non-Play, error).
+  static Future<String?> _readInstallReferrer() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final details = await AndroidPlayInstallReferrer.installReferrer;
+      final referrer = details.installReferrer;
+      // Match eodin_cid only at a query-param boundary (avoid e.g. not_eodin_cid=).
+      if (referrer != null && RegExp(r'(^|[?&])eodin_cid=').hasMatch(referrer)) {
+        return referrer;
+      }
+    } catch (_) {
+      // referrer unavailable (non-Play install, service error) → fingerprint fallback
+    }
+    return null;
   }
 
   /// Generate a unique device identifier
