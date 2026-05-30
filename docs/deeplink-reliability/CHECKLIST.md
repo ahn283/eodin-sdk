@@ -17,7 +17,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ **머지·배포(live)** — 실기기 QA만 대기 | H-1/H-2/H-3 + M·L. i18n 은 1.6 이관 |
 | Phase 1.6 (랜딩 i18n) | ✅ **머지·배포(live)** — curl 검증(ko/ja lang+문구, 캐시 no-store) 완료 | 13 locale + Accept-Language + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
 | Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
-| Phase 3 (Deferred Android 결정론) | 🚧 설계 확정(`phase3-design.md`) / 구현 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함 |
+| Phase 3 (Deferred Android 결정론) | 🚧 3.1 백엔드 ✅ / 3.2 랜딩·3.3 SDK 구현 중 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함 |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
 | Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
 | Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
@@ -173,15 +173,20 @@ PRD 참고: `./PRD.md` (2026-05-30)
 > F-3 핵심. **설계 확정: `phase3-design.md`** (D1 서버발급 / D2 `eodin_cid=<token>` / D3 Flutter 포함 / D4 24h 유지 / D5 비-Play 는 Phase 4).
 > Play 설치 = 결정론 100%, 그 외 = Phase 4 fallback.
 
-### 3.1 백엔드 + DB (eodin) — additive, 단독 배포 가능
-- [ ] Prisma `DeferredParam.clickId String? @unique` + 마이그레이션
-- [ ] `saveDeferredParams`: clickId 발급(서버)/저장
-- [ ] `getDeferredParams`: `installReferrer`/`clickId` 쿼리 → 토큰 결정론 조회 우선, 없으면 기존 경로 fallback (additive)
-- [ ] referrer 파싱(`eodin_cid=<token>`) 유틸 + 단위테스트
+### 3.1 백엔드 + DB (eodin) — ✅ 완료 (코드/리뷰/테스트) · 마이그레이션 배포 대기
+- [x] Prisma `DeferredParam.clickId String? @unique` + 수동 마이그레이션(`20260530000000_add_deferred_clickid`)
+- [x] `saveDeferredParams`: clickId 저장 + P2002 충돌 idempotent(200) (code-review H1)
+- [x] `getDeferredParams`: `installReferrer`/`clickId` 토큰 결정론 조회 우선, deviceFingerprint fallback (additive)
+- [x] `parseClickIdFromReferrer`(eodin_cid 추출 + URL 디코드, H2) + 단위테스트 (api 전체 38 통과)
+- [x] 코드리뷰 PASS(B) — H1/H2 반영
+- [ ] **배포**: main 머지 → `prisma migrate deploy` 로 DB 컬럼 적용 + eodin-api 재배포
 
-### 3.2 링크 생성 측 (eodin apps/web) — web 배포만
-- [ ] 클릭 시 clickId 발급 + row 저장
-- [ ] Android Play Store URL 에 `&referrer=eodin_cid%3D<clickId>` 부착 (intent fallback_url + Download 버튼). iOS 스토어엔 미부착
+### 3.2 링크 생성 측 (eodin apps/web) — ✅ 완료 (코드/리뷰/테스트) · web 배포 대기
+- [x] `page.tsx` 서버에서 `crypto.randomUUID()` clickId 발급 → prop 전달 (D1)
+- [x] `utils/referrer.ts` `withPlayReferrer`: Android Play URL 에 `referrer=eodin_cid=<clickId>` (기존 referrer 머지, M3) + 단위테스트(라운드트립·intent 이중인코딩)
+- [x] 4개 Android 스토어 진입점(intent fallback / legacy / handleDownload / handleOpenApp) 일관 적용, iOS 미부착
+- [x] `saveDeferredParams` 에 clickId 포함 → row 저장
+- [x] 코드리뷰 PASS(B) — M3 머지 / L2 테스트 / M1·I1 신뢰경계 문서화 반영
 
 ### 3.3 SDK 회수 (eodin-sdk) — 앱 출시 필요(Phase 4 와 묶음)
 - [ ] `com.android.installreferrer:installreferrer` — sdk-android + capacitor-android
@@ -225,6 +230,14 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [ ] senior-code-review (4채널 parity + public surface)
 
 ---
+
+## 문서 동기화 (README / 가이드) — 잊지 말 것
+
+- [x] eodin `README.md`: API endpoint 버그 수정(`link.eodin.app/api/v1` → `api.eodin.app/api/v1`, 코드 예제 전부) + `/api/v1/deferred-params` v2 문서(installReferrer/clickId + 응답 필드) + "api vs link 도메인" 주의
+- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `docs/guide/integration-guide.md` deferred 섹션 — Install Referrer(Android) + 서버 확률매칭(iOS) 동작 + v2 응답 필드. (현재 public API `checkDeferredParams()`/`params.path` 불변이라 사용 예제는 유효)
+- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `README.md` + `migration-guide.md`(SemVer bump 사유) + 4채널 CHANGELOG
+- [ ] eodin `README.md:231` `docs/deferred-deeplink-architecture-comparison.md` 최신화 여부 점검(fingerprint→Install Referrer 전환 반영)
+- 원칙: **각 Phase 완료 = 관련 README/가이드 동시 갱신** (배포/릴리스 전 동기화)
 
 ## 메모 / 의사결정 대기
 
