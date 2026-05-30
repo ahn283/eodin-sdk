@@ -20,7 +20,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 3 (Deferred Android 결정론) | 🚧 3.1 백엔드+3.2 랜딩 **배포(live)** / 3.3 SDK 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함. 매칭은 SDK 회수 후 |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
 | Phase 5 (Graceful 실패 + 정리) | ✅ 완료 (eodin `7ef9374`) | F-9 graceful 계약 문서화 + F-8 서버 dead code 제거 |
-| Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
+| Phase 6 (검증 / 5앱 회귀) | 🚧 codeable 완료(테스트+CHANGELOG+사인오프 GO) / E2E·5앱·CI ⛔ 외부 | beta.2 release-prep `d165cae`. 잔여=CI green→태그→앱출시 |
 
 심각도: **P0** 기능 비동작 / **P1** 신뢰성 결함 / **P2** 정확도·정합성·운영
 
@@ -219,14 +219,20 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ---
 
-## Phase 6: 검증 / 5앱 회귀
+## Phase 6: 검증 / 5앱 회귀 — codeable ✅ / E2E·5앱 ⛔ 외부 게이트
 
-- [ ] 4채널 단위 테스트 (계약 파싱 / 매칭)
-- [ ] Android Play 내부 테스트 트랙으로 Install Referrer end-to-end (클릭→설치→회수)
-- [ ] iOS TestFlight 확률 매칭 end-to-end
-- [ ] 5개 앱(fridgify/plori/tempy/arden/kidstopia) deferred 회수 회귀
-- [ ] SemVer/CHANGELOG (breaking — deferred 계약 변경)
-- [ ] senior-code-review (4채널 parity + public surface)
+- [~] 4채널 단위 테스트: **Flutter 17 + api 43 ✅** / 네이티브(iOS XCTest·Android JUnit) ⛔ 로컬 빌드 불가 → **CI**
+- [x] **SemVer/CHANGELOG**: `v2.0.0-beta.2` 4채널 bump(Flutter/Android/Capacitor/iOS, web 제외) + CHANGELOG 4개 + podspec repo 정정 (branch `feat/deferred-phase3-sdk` `d165cae`)
+- [x] **최종 senior-code-review (4채널 parity + public surface)**: **GO(conditional)** — 코드 블로커 0, public surface 불변(SemVer minor), 이전 finding 전부 반영 확인
+- [ ] ⛔ **Android Play 내부 트랙 E2E** (클릭→설치→회수) — 기기/Play 콘솔 필요
+- [ ] ⛔ **iOS TestFlight 확률매칭 E2E** — 기기 필요
+- [ ] ⛔ **5앱 deferred 회수 회귀** (fridgify/plori/tempy/arden/kidstopia) — 앱 + 스토어 출시 필요
+- [→] 다음 사이클(비블로커): 네이티브 200-hit 가드 parity, Android `serviceId` non-null 명시
+
+### 릴리스 잔여 게이트 (외부 — 사장님/CI)
+1. eodin-sdk **CI Android 빌드 green** 확인 → `feat/deferred-phase3-sdk` main 머지
+2. **git tag `v2.0.0-beta.2`** + (pub.dev/npm/Maven publish 시) 배포
+3. 5앱 dependency 태그 bump → **App Store / Play Store 출시**
 
 ---
 
