@@ -206,7 +206,7 @@ export class EodinAnalyticsWeb
     // withLock 의 universal trim 제거 → 호출자 책임. requeueBatch (flush
     // 실패 retry) 경로는 일시적 maxSize 초과를 허용하고 다음 track 에서
     // 자연 trim.
-    await this.queue.withLock((current) => {
+    await this.queue.withLock((current: QueuedEvent[]) => {
       const next = [...current, event];
       return next.length > MAX_QUEUE_SIZE
         ? next.slice(next.length - MAX_QUEUE_SIZE)
@@ -245,7 +245,7 @@ export class EodinAnalyticsWeb
     // Atomically take a batch under the queue lock so concurrent track()
     // and flush() calls in different tabs cannot duplicate or drop events.
     let batch: QueuedEvent[] = [];
-    await this.queue.withLock((current) => {
+    await this.queue.withLock((current: QueuedEvent[]) => {
       batch = current.slice(0, MAX_BATCH_SIZE);
       return current.slice(batch.length);
     });
@@ -474,7 +474,7 @@ export class EodinAnalyticsWeb
 
   private async requeueBatch(batch: QueuedEvent[]): Promise<void> {
     if (batch.length === 0) return;
-    await this.queue.withLock((current) => [...batch, ...current]);
+    await this.queue.withLock((current: QueuedEvent[]) => [...batch, ...current]);
   }
 
   private attachLifecycleListeners(): void {
