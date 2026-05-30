@@ -17,6 +17,19 @@ Eodin SDK 는 **딥링크 + 분석 통합 SDK** 다. v2 는 5채널 (Flutter / i
 
 > Eodin Analytics 와 Firebase Analytics (GA4) 는 **dual-tracking** 패턴으로 함께 쓰는 것이 표준이다 (`docs/logging/unified-event-reference.md`). Eodin 은 마케팅 attribution 용, GA4 는 product analytics 용. 호스트 앱의 `AnalyticsService` 가 두 SDK 호출을 한 번에 처리한다.
 
+### 1.1 Deferred 매칭 동작 방식 (v2 — deeplink-reliability)
+
+설치 전 클릭을 설치 후 복원하는 매칭은 플랫폼별로 다르다. **호스트 앱 코드는 동일** (`checkDeferredParams()` → `path`/`resourceId`/`metadata`) — 아래는 내부 동작.
+
+| 플랫폼 | 방식 | 정확도 | 요건 |
+|---|---|---|---|
+| **Android (Play 설치)** | **Play Install Referrer** — 랜딩이 스토어 URL 에 click 토큰(`eodin_cid`)을 심고, SDK 가 설치 후 회수 → 백엔드 토큰 결정론 매칭 | 결정론(~100%) | SDK ≥ `2.0.0-beta.2` |
+| **iOS / 비-Play** | **서버 확률 매칭** — 클릭 IP + service + 짧은 시간 윈도우(현재 60분)로 best-effort. 공용 IP 모호 시 미반환(오매칭 방어) | 확률(best-effort) | 백엔드 배포만 (앱 출시 불필요) |
+
+- **계약 안정**: `checkDeferredParams()` 시그니처와 `DeferredParamsResult.path` 공개 필드는 v2 내내 불변 → 앱은 SDK 버전 bump 만으로 채택 (코드 변경 없음).
+- **매칭 실패(404) graceful 처리 필수**: 유기적 설치(클릭 없이 설치)는 정상 케이스 — `NoParamsFound` 를 에러로 다루지 말고 홈/온보딩으로 진입. **신규 사용자에게 에러 화면 금지.**
+- API 도메인은 항상 `api.eodin.app` (딥링크 도메인 `link.eodin.app` 아님).
+
 ---
 
 ## 2. Pre-flight checklist
