@@ -52,3 +52,7 @@ local.properties
 captures/
 *.iml
 .cxx/
+
+# Claude Code agent working memory (local state, not source)
+.claude/agent-memory/
+**/.claude/agent-memory/
