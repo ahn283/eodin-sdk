@@ -13,10 +13,10 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase | 상태 | 비고 |
 |---|---|---|
 | Phase 0 (조사) | ✅ 완료 | forward + deferred 전 경로 점검, 베스트 프랙티스 대비 (PRD §3·§4) |
-| Phase 1 (Forward 긴급 패치) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | F-1/F-2 — 빌드·디자인·코드·로깅·단위테스트 게이트 통과. branch `fix/deeplink-forward-redirect` |
-| Phase 1.5 (랜딩 디자인 정합성) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | H-1 대비 가드 / H-2 스피너 통합 / H-3 in-app 문구 / M·L. i18n 은 1.6 이관 |
-| Phase 1.6 (랜딩 i18n) | ✅ 코어 완료 (실기기·배포검증 대기) | 13 locale 카탈로그 + Accept-Language 해석 + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
-| Phase 2 (Deferred 계약 통일) | ✅ 2a 백엔드 + 2b SDK 4채널 완료 (릴리스-prep·CI 검증 대기) | F-4/F-6. additive 하위호환. ⚠️ 매칭은 Phase 3/4 전까지 0% |
+| Phase 1 (Forward 긴급 패치) | ✅ **머지·배포(live)** — 실기기 QA만 대기 | F-1/F-2. eodin `7a67507` → eodin-web 배포 SUCCESS |
+| Phase 1.5 (랜딩 디자인 정합성) | ✅ **머지·배포(live)** — 실기기 QA만 대기 | H-1/H-2/H-3 + M·L. i18n 은 1.6 이관 |
+| Phase 1.6 (랜딩 i18n) | ✅ **머지·배포(live)** — curl 검증(ko/ja lang+문구, 캐시 no-store) 완료 | 13 locale + Accept-Language + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
+| Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
 | Phase 3 (Deferred Android 결정론) | 🚧 설계 확정(`phase3-design.md`) / 구현 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함 |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
 | Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
@@ -141,7 +141,8 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] `service` 쿼리 매칭 스코핑(F-6, optional 하위호환) + non-string `service` 400 reject
 - [x] 단위 테스트 6건(`deferredParamsContract.test.ts`: canonical+legacy / 스코핑 유무 / 빈문자 fallback / 배열 400 / 404) — api 전체 29 통과
 - [x] 코드리뷰 PASS(A-) — M1 주석 톤다운(F-6=데이터정합 가드, IDOR 통제 아님), M2 검증 반영
-- [ ] 배포(Railway, main 머지 시 자동) + CHANGELOG additive 명시
+- [x] 배포 완료 — Railway eodin-api `e7170dc` SUCCESS (main 머지 자동배포, live)
+- [ ] api CHANGELOG additive 명시 (release-prep)
 
 ### 2b. SDK 채널 (eodin-sdk/packages) — ✅ 코드/리뷰 완료 (public surface 불변, SemVer minor)
 - [x] **Flutter**: `eodin_deeplink.dart` `json['data']` 래퍼 제거 → 최상위 파싱(`found`/`deeplinkPath`/`path` 가드). `deferred_params_result.dart` `fromJson` = `deeplinkPath ?? path` / `metadata ?? params`. 테스트 mock v2 갱신 → 17 통과
