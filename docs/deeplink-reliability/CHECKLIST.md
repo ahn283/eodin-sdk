@@ -231,8 +231,9 @@ PRD 참고: `./PRD.md` (2026-05-30)
 ## 문서 동기화 (README / 가이드) — 잊지 말 것
 
 - [x] eodin `README.md`: API endpoint 버그 수정(`link.eodin.app/api/v1` → `api.eodin.app/api/v1`, 코드 예제 전부) + `/api/v1/deferred-params` v2 문서(installReferrer/clickId + 응답 필드) + "api vs link 도메인" 주의
-- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `docs/guide/integration-guide.md` deferred 섹션 — Install Referrer(Android) + 서버 확률매칭(iOS) 동작 + v2 응답 필드. (현재 public API `checkDeferredParams()`/`params.path` 불변이라 사용 예제는 유효)
-- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `README.md` + `migration-guide.md`(SemVer bump 사유) + 4채널 CHANGELOG
+- [x] eodin-sdk `README.md` **Deferred Deep Linking 섹션** (Android Install Referrer / iOS 서버 확률, 사용 예제, graceful) — GitHub repo 첫 화면 렌더링 = 공개 가이드 (Pages 불필요, `cbfa31c`)
+- [x] `docs/guide/integration-guide.md §1.1` deferred 매칭 동작 방식(플랫폼별) + graceful + api 도메인
+- [ ] **release-prep 시**: `migration-guide.md`(SemVer bump 사유) + 4채널 CHANGELOG (beta.2)
 - [ ] eodin `README.md:231` `docs/deferred-deeplink-architecture-comparison.md` 최신화 여부 점검(fingerprint→Install Referrer 전환 반영)
 - 원칙: **각 Phase 완료 = 관련 README/가이드 동시 갱신** (배포/릴리스 전 동기화)
 
