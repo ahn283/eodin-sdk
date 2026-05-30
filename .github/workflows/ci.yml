@@ -2,11 +2,11 @@ name: CI
 
 # Builds + tests every SDK channel. Commands mirror what was verified locally
 # (deeplink-reliability Phase 6 — CI 검증). Channels:
-#   - sdk-flutter   (ubuntu)  flutter analyze + test
-#   - sdk-android   (ubuntu)  ./gradlew testDebugUnitTest assembleRelease
-#   - capacitor-ts  (ubuntu)  npm ci + build + jest
-#   - sdk-ios       (macOS)   xcodebuild build + test (iOS Simulator)
-#   - capacitor-ios (macOS)   xcodebuild build (iOS Simulator)
+#   - sdk-flutter      (ubuntu)  flutter analyze + test
+#   - sdk-android      (ubuntu)  ./gradlew testDebugUnitTest assembleRelease
+#   - web-capacitor-ts (ubuntu)  npm ci + build/test eodin-web + @eodin/capacitor
+#   - sdk-ios          (macOS)   xcodebuild build + test (iOS Simulator)
+#   - capacitor-ios    (macOS)   xcodebuild build (iOS Simulator)
 #
 # NOTE: packages/capacitor/android is intentionally NOT built here — it declares
 # `implementation project(':capacitor-android')`, i.e. it only resolves inside a
@@ -56,20 +56,26 @@ jobs:
       - name: Gradle build + unit tests
         run: ./gradlew testDebugUnitTest assembleRelease --no-daemon --stacktrace
 
-  capacitor-ts:
-    name: Capacitor (TS build + jest)
+  web-capacitor-ts:
+    name: Web + Capacitor (TS build + jest)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/capacitor
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # npm workspace install at the repo root links eodin-web -> packages/sdk-web.
       - run: npm ci
-      - run: npm run build
-      - run: npm test
+      # @eodin/capacitor imports `eodin-web/internal`, whose exports map points at
+      # eodin-web's dist/, so eodin-web must be built before capacitor compiles.
+      - name: Build eodin-web
+        run: npm run build -w eodin-web
+      - name: Test eodin-web
+        run: npm test -w eodin-web
+      - name: Build @eodin/capacitor
+        run: npm run build -w @eodin/capacitor
+      - name: Test @eodin/capacitor
+        run: npm test -w @eodin/capacitor
 
   sdk-ios:
     name: iOS (build + XCTest)
