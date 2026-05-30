@@ -8,7 +8,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ---
 
-## 진행 상태 (Last update: 2026-05-30)
+## 진행 상태 (Last update: 2026-05-31)
 
 | Phase | 상태 | 비고 |
 |---|---|---|
@@ -19,7 +19,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
 | Phase 3 (Deferred Android 결정론) | 🚧 3.1+3.2 **배포(live)** / 3.3 SDK 코드·리뷰 완료(CI·앱출시 대기) | F-3 — Play Install Referrer. clickId, Flutter 포함 |
 | Phase 4 (Deferred iOS 서버 확률) | 🚧 4.1 백엔드 IP매칭 **배포(live)** | F-7/F-8 — clickIp+모호성가드+atomic claim. 기존 iOS SDK로 동작 |
-| Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
+| Phase 5 (Graceful 실패 + 정리) | 🚧 F-9 가이드/계약 + 문서 동기화 **완료** / F-8 dead code(eodin repo) 잔여 | F-9 + dead code 제거 |
 | Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
 
 심각도: **P0** 기능 비동작 / **P1** 신뢰성 결함 / **P2** 정확도·정합성·운영
@@ -219,9 +219,9 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ## Phase 5: Graceful 실패 + 정리 (P2)
 
-- [ ] (F-9) 매칭 실패(404) 시 앱이 홈/온보딩으로 graceful 진입하도록 SDK 가이드/계약 명문화 — 에러 화면 금지
-- [ ] (F-8) 미사용 클라 fingerprint 경로 제거 확인
-- [ ] integration-guide 에 deferred 채택 패턴 갱신 (4채널)
+- [x] (F-9) 매칭 실패(404) 시 앱이 홈/온보딩으로 graceful 진입하도록 SDK 가이드/계약 명문화 — 에러 화면 금지. **5채널 README + integration-guide §3 + migration-guide 에 "에러 화면 금지, 일반 홈 graceful 진입" 명문화**. no-match 표면 채널차(Flutter throw / Capacitor native reject·web hasParams:false / iOS·Android noParamsFound) 문서화 (브랜치 `feat/deeplink-allchannel-docs`)
+- [ ] (F-8) 미사용 클라 fingerprint 경로 제거 확인 — **eodin repo `generateFingerprint` (apps/api). 본 SDK repo 외**
+- [x] integration-guide 에 deferred 채택 패턴 갱신 (4채널) — §3 공통 매칭 메커니즘 표(결정론/best-effort) + ATT 무관 + call-once(서버 atomic claim) 명문화
 
 ---
 
@@ -239,8 +239,8 @@ PRD 참고: `./PRD.md` (2026-05-30)
 ## 문서 동기화 (README / 가이드) — 잊지 말 것
 
 - [x] eodin `README.md`: API endpoint 버그 수정(`link.eodin.app/api/v1` → `api.eodin.app/api/v1`, 코드 예제 전부) + `/api/v1/deferred-params` v2 문서(installReferrer/clickId + 응답 필드) + "api vs link 도메인" 주의
-- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `docs/guide/integration-guide.md` deferred 섹션 — Install Referrer(Android) + 서버 확률매칭(iOS) 동작 + v2 응답 필드. (현재 public API `checkDeferredParams()`/`params.path` 불변이라 사용 예제는 유효)
-- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `README.md` + `migration-guide.md`(SemVer bump 사유) + 4채널 CHANGELOG
+- [x] eodin-sdk `docs/guide/integration-guide.md` deferred 섹션 — Install Referrer(Android) + 서버 확률매칭(iOS) 동작 + v2 응답 필드. (현재 public API `checkDeferredParams()`/`params.path` 불변이라 사용 예제는 유효). 5채널 README(Flutter/iOS/Android/Capacitor) deferred 매칭 메커니즘·신뢰도·call-once·F-9 동기화 포함
+- [x] `migration-guide.md`(beta.2 deferred 동작 변경: public surface 불변·Android Play 재출시 필요·iOS ATT 무관·no-match graceful) + 4채널 CHANGELOG(d165cae). root `README.md` 는 개요 한 줄(상세는 채널 README) — 별도 갱신 불요
 - [ ] eodin `README.md:231` `docs/deferred-deeplink-architecture-comparison.md` 최신화 여부 점검(fingerprint→Install Referrer 전환 반영)
 - 원칙: **각 Phase 완료 = 관련 README/가이드 동시 갱신** (배포/릴리스 전 동기화)
 

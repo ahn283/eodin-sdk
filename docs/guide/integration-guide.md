@@ -1,7 +1,7 @@
 # Eodin SDK v2 Integration Guide
 
-**Version**: 2.0.0-beta.1 (Phase 1.10 릴리스 예정)
-**Last Updated**: 2026-05-02
+**Version**: 2.0.0-beta.2 (deeplink-reliability — deferred 결정론/확률 매칭 반영)
+**Last Updated**: 2026-05-30
 **Audience**: Eodin SDK 를 신규로 채택하는 호스트 앱 개발자
 
 ---
@@ -61,6 +61,20 @@ Eodin SDK 는 **딥링크 + 분석 통합 SDK** 다. v2 는 5채널 (Flutter / i
 
 ## 3. 채널별 통합
 
+> **Deferred deep link 매칭 메커니즘 (공통)** — `checkDeferredParams()` 가 설치 직전 클릭을 어떻게 복원하는지는 플랫폼·설치 경로에 따라 다르다. SDK 가 자동 처리하므로 호스트 앱이 설정할 것은 없지만, 신뢰도가 다르다는 점을 알고 UX 를 설계해야 한다.
+>
+> | 플랫폼 / 설치 경로 | 메커니즘 | 신뢰도 |
+> |---|---|---|
+> | **Android — Play 설치** | Google Play **Install Referrer** 가 `eodin_cid` 클릭 토큰을 운반 → 서버 정확 조회 | 결정론 (100%) |
+> | **Android — 사이드로드 / 비-Play** | 해시 device 신호 → 서버 확률 매칭 | best-effort |
+> | **iOS** | 서버가 클릭 IP 를 시간 윈도우 내에서 확률 매칭 (Play Install Referrer 등가물 없음) | best-effort |
+> | **Web** | no-op (`hasParams: false`) — 사용자는 이미 목적지 URL 에 있음 | — |
+>
+> - Android Play 설치만 결정론이고, 나머지는 **best-effort** 다. 매칭 실패 시 앱은 **에러 화면이 아니라 일반 홈/온보딩으로 graceful 진입**해야 한다 (F-9).
+> - `checkDeferredParams()` 는 **첫 실행에서 1회만** 호출한다. 재호출해도 안전하다 — 서버가 매칭된 클릭을 **atomic 하게 claim** 하므로 이미 attribution 된 클릭은 다시 반환되지 않는다(재호출 시 404 → `NoParamsFound`). **Flutter** 는 여기에 더해 클라이언트 claimed 플래그(`SharedPreferences`)로 서버 왕복 없이 단락(short-circuit)한다.
+> - iOS 는 deferred 에 **ATT 동의가 불필요**하다 (서버 IP 매칭). ATT 는 analytics attribution 에만 관여.
+> - 설계 상세: [`docs/deeplink-reliability/phase3-design.md`](../deeplink-reliability/phase3-design.md).
+
 ### 3.1 Flutter (`eodin_sdk`)
 
 #### 3.1.1 의존성 추가
@@ -73,7 +87,7 @@ dependencies:
     git:
       url: https://github.com/ahn283/eodin-sdk.git
       path: packages/sdk-flutter
-      ref: v2.0.0-beta.1   # tag pin 권장 (main 추적은 회귀 위험)
+      ref: v2.0.0-beta.2   # 태그 미생성 시 브랜치/커밋 SHA 로 pin   # tag pin 권장 (main 추적은 회귀 위험)
 ```
 
 > **태그 vs main 권장**: `ref: main` 은 SDK 가 v3 등으로 advance 할 때 자동으로 따라가서 회귀 가능. 항상 명시적 태그 또는 commit hash 로 pin 한다.
@@ -147,7 +161,7 @@ import 'package:eodin_sdk/deeplink.dart';    // Deeplink 만
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/ahn283/eodin-sdk.git", from: "2.0.0-beta.1"),
+    .package(url: "https://github.com/ahn283/eodin-sdk.git", from: "2.0.0-beta.2"),
 ],
 targets: [
     .target(
@@ -211,7 +225,7 @@ EodinAnalytics.track("recipe_view", properties: ["recipe_id": "abc"])
 
 ```kotlin
 dependencies {
-    implementation("app.eodin:eodin-sdk:2.0.0-beta.1")
+    implementation("app.eodin:eodin-sdk:2.0.0-beta.2")
 }
 ```
 
@@ -617,6 +631,9 @@ const { success } = await EodinAnalytics.requestDataDeletion();
 - [ ] 미설치 상태에서 `https://link.eodin.app/myapp/product-123` 클릭 → 스토어로 이동
 - [ ] 설치 후 첫 실행 → `EodinDeeplink.checkDeferredParams()` 호출 → `params.path = 'product/123'`
 - [ ] 이미 설치된 상태에서 같은 링크 클릭 → 앱 직접 실행 (Universal Links / App Links)
+- [ ] **Android — Play 내부 테스트 트랙 설치**로 Install Referrer 결정론 매칭 확인 (사이드로드 / `flutter run` 설치는 확률 fallback 이라 결정론 검증 불가)
+- [ ] **iOS** — 서버 IP 확률 매칭이라 best-effort. 매칭 실패 시 **에러 화면이 아니라 일반 홈으로 graceful 진입** 확인 (F-9)
+- [ ] `checkDeferredParams()` 를 재호출 → claimed 가드로 재-attribution 안 됨 (Flutter/Android/iOS)
 
 ### 7.3 Debug verification
 
@@ -631,6 +648,8 @@ const { success } = await EodinAnalytics.requestDataDeletion();
 ### 8.1 "iOS ATT denied 인데 attribution 안 잡힘"
 
 ATT denied 시 IDFA 사용 불가 → SDK 는 자동으로 device fingerprint (IP + UA + locale) 기반 매칭으로 fallback. 정확도가 IDFA 보다 낮을 뿐 동작은 한다. `unified-event-reference.md` §"User Identification" 참조.
+
+> 이건 **analytics attribution** 얘기다. **Deferred deep link** 매칭은 ATT 와 무관하다 — iOS 는 서버가 클릭 IP 로 확률 매칭하므로 ATT 동의/거부 양쪽에서 동작한다 (§3 deferred 매칭 메커니즘 표 참조).
 
 ### 8.2 "Capacitor PWA 에서 multi-tab 사용 시 일부 이벤트 유실"
 
