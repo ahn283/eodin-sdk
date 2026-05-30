@@ -14,7 +14,8 @@ PRD 참고: `./PRD.md` (2026-05-30)
 |---|---|---|
 | Phase 0 (조사) | ✅ 완료 | forward + deferred 전 경로 점검, 베스트 프랙티스 대비 (PRD §3·§4) |
 | Phase 1 (Forward 긴급 패치) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | F-1/F-2 — 빌드·디자인·코드·로깅·단위테스트 게이트 통과. branch `fix/deeplink-forward-redirect` |
-| Phase 1.5 (랜딩 디자인 정합성) | ⬜ 대기 | design-review 격차 — H-1 대비 가드 / H-2 스피너 통합 / H-3 in-app 문구 / M·L |
+| Phase 1.5 (랜딩 디자인 정합성) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | H-1 대비 가드 / H-2 스피너 통합 / H-3 in-app 문구 / M·L. i18n 은 1.6 이관 |
+| Phase 1.6 (랜딩 i18n) | ⬜ 대기 | 공통 카탈로그(eodin 보유) + 합집합 13 locale. 번역 소스 결정 후 진행 |
 | Phase 2 (Deferred 계약 통일) | ⬜ 대기 | F-4 / F-5 / F-6 — 응답 스키마·요청 계약 단일화 |
 | Phase 3 (Deferred Android 결정론) | ⬜ 대기 | F-3 — Play Install Referrer |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
@@ -70,30 +71,55 @@ PRD 참고: `./PRD.md` (2026-05-30)
 > 점수: Deeplink-Flow **D** · Branding **B** · Mobile **B** · A11y/i18n **C**. 레퍼런스: `design/src/app/components/DeepLinkPage.tsx` + `design/system/*.png`.
 > ※ CRITICAL C-1/C-2 는 Phase 1 (§1.2/§1.1) 에서 처리 — 여기서는 중복 제외.
 
-### 1.5.1 (HIGH) per-service `primaryColor` 대비 가드 (H-1)
-- [ ] `DeepLinkRedirect.tsx:264-269`(아바타) / `:327-338`(CTA) — 밝은 브랜드색에서 white-on-color 판독 불가
-- [ ] 상대휘도 헬퍼로 전경색(흑/백) 동적 결정, 하드코딩 `text-white` 제거 → WCAG AA
+> **상태**: ✅ 코드/리뷰/테스트 완료 (실기기 검증 1.5.6 대기). 워크플로 게이트(빌드/디자인리뷰 A-/코드리뷰 A-/단위테스트) 통과. 로깅 점검 = N/A(분석 변경 없음).
 
-### 1.5.2 (HIGH) 스피너를 메인 레이아웃에 통합 (H-2)
-- [ ] `DeepLinkRedirect.tsx:214-246` — 레퍼런스에 없는 전체화면 스피너가 dead-end 표면 + 별도 디자인 언어(`w-20 rounded-2xl` vs 메인 `w-24 rounded-[22px]`)
-- [ ] 메인 레이아웃 안에 인라인 로딩 상태로 통합 + 아이콘 치수/radius 통일 (F-2 fallback 노출과 함께)
+### 1.5.1 (HIGH) per-service `primaryColor` 대비 가드 (H-1) ✅
+- [x] `utils/color.ts` `getReadableTextColor` (WCAG 상대휘도) 추출 + 단위 테스트 6건
+- [x] 아바타/CTA/QR배지 전경색 동적화 (`onPrimaryColor`/`onGradientColor`), 하드코딩 `text-white` 제거 → AA
 
-### 1.5.3 (HIGH) in-app 안내 문구 ↔ 동작 정합 (H-3)
-- [ ] `:289-295` 문구("외부 브라우저로 열기") ↔ `:328` 실제 동작(링크 복사만) 불일치 해소 — 문구 정렬 또는 Android Chrome intent 버튼 제공
+### 1.5.2 (HIGH) 스피너를 메인 레이아웃에 통합 (H-2) ✅
+- [x] 로딩 상태를 메인 아이콘 디자인 언어로 통합 (`w-24 rounded-[22px]` + `to-[#FFF0E0]` + border), `w-20 rounded-2xl` 폐기
 
-### 1.5.4 (MEDIUM) 대비·i18n·이미지 폴백
-- [ ] (M) caption `text-gray-400`(`:289`,`:315`) AA 미달 2.8:1 → `text-gray-500`
-- [ ] (M) 영어 전용 문자열(`:242,291-294,311,319,336-337`) — i18n 미배선, Plori 16개 언어 대상 (배선 범위 결정 필요)
-- [ ] (M) raw `<img>`(`:221`,`:258`,`:301`) onError 폴백 부재 — 로고→이니셜, QR→텍스트 + 고정 치수
-- [ ] (a11y) CTA/다운로드 버튼 `focus-visible:ring` 부재
+### 1.5.3 (HIGH) in-app 안내 문구 ↔ 동작 정합 (H-3) ✅
+- [x] 문구를 동작과 정합: "Copy the link and open it in your browser"
 
-### 1.5.5 (LOW) 브랜딩/스크롤 폴리시
-- [ ] (L) 아이콘 배경 `to-gray-50`(`:256`) → 레퍼런스 오렌지 틴트 `to-[#FFF0E0]`
-- [ ] (L) body `bg-gray-50` vs 컨테이너 `bg-white` — 긴 콘텐츠 스크롤 시 하단 회색 노출
-- [ ] (L) `min-h-screen` → `min-h-dvh` (모바일 동적 툴바)
+### 1.5.4 (MEDIUM) 대비·이미지 폴백 ✅ (i18n 제외 → Phase 1.6)
+- [x] caption `text-gray-400` → `text-gray-500` (2곳)
+- [x] `<img>` onError 폴백: 로고→이니셜(`logoError`/`hasLogo`), QR→텍스트(`qrError`) + 고정 치수(`width`/`height`) + 서비스 변경 시 리셋 effect (code-review MEDIUM-1)
+- [x] CTA/다운로드 버튼 `focus-visible:ring`
+- [→] 영어 전용 문자열 i18n → **Phase 1.6 으로 이관**
+
+### 1.5.5 (LOW) 브랜딩/스크롤 폴리시 ✅
+- [x] 아이콘 배경 `to-gray-50` → `to-[#FFF0E0]`
+- [x] `min-h-screen` → `min-h-dvh`
+- [→] body `bg-gray-50` vs 컨테이너 `bg-white` (L-2) — 영향 경미, 1.5.6 렌더 확인으로 판단 (현 미변경)
 
 ### 1.5.6 렌더 확인 (스크린샷 필요)
-- [ ] H-2(스피너 체감) / L-2(스크롤 하단) — Android Chrome 미설치 · iOS Safari · 데스크탑 web 3종 캡처로 확정
+- [ ] H-2(스피너 체감) / L-2(스크롤 하단) / QR 초기 페인트(design LOW-1) — Android Chrome 미설치 · iOS Safari · 데스크탑 web 3종 캡처로 확정
+
+---
+
+## Phase 1.6: 랜딩 i18n (P2) — `eodin/apps/web`
+
+> **결정 (2026-05-30)**: ① 단일 공통 카탈로그를 **eodin 이 보유** (`apps/web/src/messages/{locale}.json`) — 서비스별로 안 바뀌는 공통 문구. ② locale = **5앱 합집합**.
+> **점검 결과**: 랜딩 문구는 서비스 공통(✅ 단일 카탈로그 적합) 이나 앱 ARB 에는 거의 없음(overlap ~0, tempy `copyLink` 1건만 일치) → **신규 작성**. plori/tempy 만 localize, fridgify·kidstopia·arden 은 영어 전용 → en 만 기여.
+> **locale 합집합 (13)**: `ar de en es fr hi it ja ko pt ru vi zh` — en fallback, **ar = RTL** `dir`. (plori 고유 ar·it / tempy 고유 hi·vi)
+> **번역 소스 (결정 2026-05-30)**: Claude 가 13 locale MT 초안 작성 + 각 비-en 키에 검수 플래그(`// TODO: native review`). 표준 스토어 문구("Download on the App Store" 등)는 Apple/Google 공식 로컬라이즈 차용.
+
+### 1.6.1 인프라
+- [ ] `apps/web/src/messages/{locale}.json` 카탈로그 + `getDictionary(locale)` 서버 유틸
+- [ ] `Accept-Language` → 지원 locale 해석기 (en fallback) — **URL prefix 라우팅 안 씀** (딥링크 URL 보존)
+- [ ] `layout.tsx` `<html lang>` 동적화 (현재 `ko` 하드코딩 = 버그) + `ar` `dir="rtl"`
+- [ ] dynamic 렌더/헤더 vary 보장 — `[service]` 는 이미 dynamic, `404`/`expired`(static) 처리 결정
+
+### 1.6.2 문자열 추출 + 번역
+- [ ] 키 추출 ~35개: `DeepLinkRedirect.tsx` + `404`/`expired`/`feedback` + "Powered by Eodin"
+- [ ] 13 locale 번역 (번역 소스 결정 후)
+- [ ] 컴포넌트 배선 — 서버에서 dict 주입
+
+### 1.6.3 검증
+- [ ] 워크플로 게이트 (빌드 / 디자인 / 코드 / 단위테스트)
+- [ ] locale 별 렌더 + RTL(ar) 확인
 
 ---
 
