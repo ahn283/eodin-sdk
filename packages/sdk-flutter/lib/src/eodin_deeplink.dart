@@ -125,13 +125,18 @@ class EodinDeeplink {
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final data = json['data'] as Map<String, dynamic>?;
 
-        if (data != null) {
+        // v2 contract: fields are top-level (no `data` wrapper). A 200 with
+        // found==true (or a deeplinkPath/path present) is a hit.
+        final hasResult = json['found'] == true ||
+            json['deeplinkPath'] != null ||
+            json['path'] != null;
+
+        if (hasResult) {
           // Mark as claimed
           await prefs.setBool(_claimedKey, true);
 
-          final result = DeferredParamsResult.fromJson(data);
+          final result = DeferredParamsResult.fromJson(json);
 
           if (kDebugMode) {
             print('[EodinDeeplink] Found deferred params: $result');

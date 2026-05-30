@@ -98,7 +98,7 @@ public final class EodinDeeplink {
     public static func checkDeferredParams(completion: @escaping (Result<DeferredParamsResult, EodinError>) -> Void) {
         guard shared.isConfigured,
               let endpoint = shared.apiEndpoint,
-              let _ = shared.serviceId else {
+              let serviceId = shared.serviceId else {
             completion(.failure(.notConfigured))
             return
         }
@@ -106,8 +106,8 @@ public final class EodinDeeplink {
         // Generate device fingerprint
         let deviceId = DeviceFingerprint.generate()
 
-        // Build URL
-        guard let url = URL(string: "\(endpoint)/deferred-params?deviceId=\(deviceId)") else {
+        // Build URL — scope to this service (F-6).
+        guard let url = URL(string: "\(endpoint)/deferred-params?deviceId=\(deviceId)&service=\(serviceId)") else {
             completion(.failure(.invalidResponse))
             return
         }
@@ -152,9 +152,10 @@ public final class EodinDeeplink {
 
                 do {
                     if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        let path = json["deeplinkPath"] as? String
+                        // v2 canonical keys with legacy fallback (deeplinkPath←path, metadata←params).
+                        let path = (json["deeplinkPath"] as? String) ?? (json["path"] as? String)
                         let resourceId = json["resourceId"] as? String
-                        let metadata = json["metadata"] as? [String: Any]
+                        let metadata = (json["metadata"] as? [String: Any]) ?? (json["params"] as? [String: Any])
 
                         let result = DeferredParamsResult(
                             path: path,

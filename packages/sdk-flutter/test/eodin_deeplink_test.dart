@@ -48,13 +48,13 @@ void main() {
         expect(request.url.queryParameters['service'], 'test-service');
 
         return http.Response(
+          // v2 contract: top-level fields, no `data` wrapper (deeplink-reliability Phase 2).
           jsonEncode({
-            'success': true,
-            'data': {
-              'path': 'product/123',
-              'resourceId': '123',
-              'metadata': {'source': 'test'},
-            },
+            'found': true,
+            'service': 'test-service',
+            'deeplinkPath': 'product/123',
+            'resourceId': '123',
+            'metadata': {'source': 'test'},
           }),
           200,
           headers: {'content-type': 'application/json'},
