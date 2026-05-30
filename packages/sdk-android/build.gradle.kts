@@ -39,6 +39,15 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    testOptions {
+        unitTests {
+            // android.util.Log / framework stubs return defaults instead of
+            // throwing "not mocked" in pure-JVM unit tests (e.g. loading
+            // EodinAnalytics, which calls android.util.Log).
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -50,6 +59,9 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("io.mockk:mockk:1.13.8")
+    // Real org.json on the unit-test classpath — the android.jar stub's
+    // JSONObject throws "not mocked" (AttributionTest uses toJson()/fromJson()).
+    testImplementation("org.json:json:20231013")
 
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

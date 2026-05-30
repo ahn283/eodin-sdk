@@ -567,7 +567,10 @@ class EodinAnalytics {
     _offlineMode = true;
     _isEnabled = true;
 
-    // Reset EventQueue
+    // Reset EventQueue. reset() is @visibleForTesting and this caller
+    // (EodinAnalytics.reset) is itself @visibleForTesting, so the cross-library
+    // use is intentional and test-only.
+    // ignore: invalid_use_of_visible_for_testing_member
     await EventQueue.instance.reset();
   }
 }

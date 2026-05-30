@@ -112,7 +112,7 @@ void main() {
 
     // C2/H1: post-deletion track() must continue to work
     test('track() works after requestDataDeletion (re-bootstrapped)', () async {
-      var trackedAfterDelete = <String>[];
+      final trackedAfterDelete = <String>[];
       final mockClient = MockClient((request) async {
         if (request.url.path.endsWith('/events/user-data')) {
           return http.Response('{}', 200);

@@ -122,7 +122,6 @@ void main() {
 
       final mockClient = MockClient((request) async {
         fail('Should not make API call if already claimed');
-        return http.Response('', 500);
       });
 
       EodinDeeplink.configure(

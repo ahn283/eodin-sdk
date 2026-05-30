@@ -150,7 +150,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] **Android / Capacitor-Android**: URL 2곳(콜백+suspend) `&service=$serviceId`
 - [x] **C1 (code-review CRITICAL) 해소**: 네이티브 4파일에 legacy 폴백 추가(`deeplinkPath ?? path`, `metadata ?? params`) — 백엔드 2a 배포 전/캐시 구버전에서도 네이티브 deferred 무동작 방지, Flutter와 대칭
 - [x] Capacitor web: no-op 유지(의도된 설계)
-- [ ] **빌드**: Flutter analyze+test ✅ / iOS·Android 로컬 빌드 불가(JRE 없음 / swift host ATT 이슈) → **CI 검증 필요**
+- [x] **빌드**: GitHub Actions CI 추가(`.github/workflows/ci.yml`) + **로컬 전채널 검증 통과** — Flutter analyze(clean)+test 40 / iOS xcodebuild(iOS Sim)+XCTest 26 / Capacitor TS build+jest 64 / Android `./gradlew testDebugUnitTest assembleRelease` 45+AAR. (capacitor/android 는 `:capacitor-android` 호스트 프레임워크 의존이라 standalone 빌드 제외 → 호스트앱 CI)
 
 ### 2b 후속 (릴리스-prep, code-review 잔여 — release 전 처리)
 - [ ] (H2) 4채널 CHANGELOG + 버전 bump(beta.2): "deferred top-level v2 파싱 + legacy 폴백(F-4) / service 쿼리 스코핑(F-6)"
@@ -191,7 +191,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] eodin_cid 있으면 `?service=&installReferrer=` 결정론, 없으면 deviceId fingerprint fallback. public surface 불변(SemVer minor)
 - [x] iOS/Capacitor-iOS 미변경(Android 전용, iOS는 Phase 4)
 - [x] 코드리뷰 PASS(B) — H1(메인스레드 가드)/H2(캐시 무한재시도)/M1(Uri.Builder 인코딩)/M2/L1/L2 반영. M3(CHANGELOG)·L3(버전)는 release-prep
-- [ ] ⚠️ **빌드**: Flutter ✅ / **Android(sdk+capacitor) 로컬 빌드 불가(JRE 없음) → CI 검증 필수**
+- [x] **빌드**: CI(`.github/workflows/ci.yml`) + 로컬 검증 통과 — Android `sdk-android` 는 standalone gradle 스캐폴딩(settings/wrapper, AGP 8.2.1/Kotlin 1.9.10/Gradle 8.7) 추가 후 `testDebugUnitTest assembleRelease` 그린(45). capacitor-android 는 호스트앱 CI(별도)
 - [ ] **앱 출시**(Phase 4와 묶음) 후 실제 동작
 
 ### 3.4 검증
@@ -227,7 +227,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ## Phase 6: 검증 / 5앱 회귀
 
-- [ ] 4채널 단위 테스트 (계약 파싱 / 매칭)
+- [x] 4채널 단위 테스트 (계약 파싱 / 매칭) — CI 에서 자동 실행: Flutter 40 / iOS 26 / Capacitor 64 / Android 45 (총 175). ※ 매칭 E2E(설치→회수)는 아래 Play 트랙/TestFlight 항목에서 별도
 - [ ] Android Play 내부 테스트 트랙으로 Install Referrer end-to-end (클릭→설치→회수)
 - [ ] iOS TestFlight 확률 매칭 end-to-end
 - [ ] 5개 앱(fridgify/plori/tempy/arden/kidstopia) deferred 회수 회귀
