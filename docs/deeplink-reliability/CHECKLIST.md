@@ -17,8 +17,8 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ **머지·배포(live)** — 실기기 QA만 대기 | H-1/H-2/H-3 + M·L. i18n 은 1.6 이관 |
 | Phase 1.6 (랜딩 i18n) | ✅ **머지·배포(live)** — curl 검증(ko/ja lang+문구, 캐시 no-store) 완료 | 13 locale + Accept-Language + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
 | Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
-| Phase 3 (Deferred Android 결정론) | 🚧 3.1 백엔드+3.2 랜딩 **배포(live)** / 3.3 SDK 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함. 매칭은 SDK 회수 후 |
-| Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
+| Phase 3 (Deferred Android 결정론) | 🚧 3.1+3.2 **배포(live)** / 3.3 SDK 코드·리뷰 완료(CI·앱출시 대기) | F-3 — Play Install Referrer. clickId, Flutter 포함 |
+| Phase 4 (Deferred iOS 서버 확률) | 🚧 4.1 백엔드 IP매칭 코드·리뷰 완료(배포 대기) | F-7/F-8 — clickIp+모호성가드+atomic claim. 기존 iOS SDK로 동작 |
 | Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
 | Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
 
@@ -201,13 +201,19 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ## Phase 4: Deferred iOS 서버 확률 매칭 (P0/P2)
 
-> F-3 / F-7 / F-8. 클라 토큰 폐기, 서버가 신호로 fuzzy 매칭.
+> F-3 / F-7 / F-8. 서버가 IP 신호로 fuzzy 매칭. **백엔드 IP 매칭은 기존 iOS SDK(req.ip 사용)로 동작 → 앱 출시 없이 배포만으로 iOS deferred 베이스라인.**
 
-- [ ] click 시점 서버 저장: IP + UA + Accept-Language + timestamp (`generateFingerprint:31` 재활용, F-8 dead code 정상화)
-- [ ] 설치 후 조회 시 서버가 동일 신호로 best-match
-- [ ] **매칭 윈도우 ≤5분~1h** + 신호 유사도 가중치 (F-7) — 24h/최신순 폐기
-- [ ] 만료/claimed 정리 정책 재정의
-- [ ] 오매칭(공용 IP) 방어 테스트
+### 4.1 백엔드 IP 확률매칭 (eodin/apps/api) — ✅ 완료 (코드/리뷰/테스트) · 배포 대기
+- [x] click 시 서버 IP 저장: `DeferredParam.clickIp` + 인덱스 + 마이그레이션. `saveDeferredParams` 가 `req.ip`(trust proxy=1) 저장
+- [x] `getDeferredParams`: 결정론/정확fingerprint miss 시 `clickIp==req.ip` + service scope + **60분 윈도우** 최신순 확률 fallback. `matchType` 응답
+- [x] **오매칭 방어(F-7)**: 공용 IP 모호성 가드 — 후보 ≥2면 미반환(code-review H1). atomic claim(updateMany where claimed:false → 더블 어트리뷰션 방지, H2)
+- [x] 단위테스트 +5 (clickIp/IP fallback/모호성/clickId시 미실행/matchType) — api 43 통과. 코드리뷰 PASS(B)
+- [ ] 배포 (main 머지 → 마이그 자동적용 + eodin-api 재배포)
+- [→] (M1) 윈도우 60분 — PRD ≤5분 권장 대비 install 지연 고려한 절충. 추후 튜닝
+- [→] F-8 dead code `generateFingerprint` 제거 → Phase 5
+
+### 4.2 (선택, 후속) iOS SDK 신호 보강 — 앱 출시 필요
+- [ ] iOS SDK 가 device 신호(OS/locale/screen) 전송 → 서버 가중치 매칭 정확도↑ (IP-only 베이스라인 위 enhancement)
 
 ---
 
