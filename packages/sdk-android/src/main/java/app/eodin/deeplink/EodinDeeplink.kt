@@ -93,7 +93,7 @@ object EodinDeeplink {
                     android.util.Log.d(TAG, "Checking deferred params with deviceId: $deviceId")
                 }
 
-                val url = URL("$endpoint/deferred-params?deviceId=$deviceId")
+                val url = URL("$endpoint/deferred-params?deviceId=$deviceId&service=$serviceId")
                 val connection = url.openConnection() as HttpURLConnection
 
                 connection.apply {
@@ -111,9 +111,9 @@ object EodinDeeplink {
                         val json = JSONObject(response)
 
                         val result = DeferredParamsResult(
-                            path = json.optString("deeplinkPath", null),
+                            path = json.optString("deeplinkPath", null) ?: json.optString("path", null),
                             resourceId = json.optString("resourceId", null),
-                            metadata = parseMetadata(json.optJSONObject("metadata"))
+                            metadata = parseMetadata(json.optJSONObject("metadata") ?: json.optJSONObject("params"))
                         )
 
                         if (BuildConfig.DEBUG) {
@@ -185,7 +185,7 @@ object EodinDeeplink {
             android.util.Log.d(TAG, "Checking deferred params with deviceId: $deviceId")
         }
 
-        val url = URL("$endpoint/deferred-params?deviceId=$deviceId")
+        val url = URL("$endpoint/deferred-params?deviceId=$deviceId&service=$serviceId")
         val connection = url.openConnection() as HttpURLConnection
 
         try {
@@ -204,9 +204,9 @@ object EodinDeeplink {
                     val json = JSONObject(response)
 
                     val result = DeferredParamsResult(
-                        path = json.optString("deeplinkPath", null),
+                        path = json.optString("deeplinkPath", null) ?: json.optString("path", null),
                         resourceId = json.optString("resourceId", null),
-                        metadata = parseMetadata(json.optJSONObject("metadata"))
+                        metadata = parseMetadata(json.optJSONObject("metadata") ?: json.optJSONObject("params"))
                     )
 
                     // Store attribution if available (fire-and-forget)

@@ -9,10 +9,11 @@ class DeferredParamsResult {
 
   /// Creates a [DeferredParamsResult] from JSON
   factory DeferredParamsResult.fromJson(Map<String, dynamic> json) {
+    // v2 canonical keys with legacy fallback (deeplinkPath←path, metadata←params).
     return DeferredParamsResult(
-      path: json['path'] as String?,
+      path: (json['deeplinkPath'] ?? json['path']) as String?,
       resourceId: json['resourceId'] as String?,
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      metadata: (json['metadata'] ?? json['params']) as Map<String, dynamic>?,
     );
   }
 

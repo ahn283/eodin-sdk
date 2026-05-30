@@ -16,7 +16,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 1 (Forward 긴급 패치) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | F-1/F-2 — 빌드·디자인·코드·로깅·단위테스트 게이트 통과. branch `fix/deeplink-forward-redirect` |
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | H-1 대비 가드 / H-2 스피너 통합 / H-3 in-app 문구 / M·L. i18n 은 1.6 이관 |
 | Phase 1.6 (랜딩 i18n) | ✅ 코어 완료 (실기기·배포검증 대기) | 13 locale 카탈로그 + Accept-Language 해석 + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
-| Phase 2 (Deferred 계약 통일) | ⬜ 대기 | F-4 / F-5 / F-6 — 응답 스키마·요청 계약 단일화 |
+| Phase 2 (Deferred 계약 통일) | ✅ 2a 백엔드 + 2b SDK 4채널 완료 (릴리스-prep·CI 검증 대기) | F-4/F-6. additive 하위호환. ⚠️ 매칭은 Phase 3/4 전까지 0% |
 | Phase 3 (Deferred Android 결정론) | ⬜ 대기 | F-3 — Play Install Referrer |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
 | Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
@@ -133,21 +133,37 @@ PRD 참고: `./PRD.md` (2026-05-30)
 ## Phase 2: Deferred 계약 통일 (P0) — `eodin/apps/api` + `eodin-sdk/packages/*`
 
 > 목표: 요청/응답 스키마를 4채널 + 백엔드 단일 계약으로. (F-4 / F-5 / F-6)
+> **설계 원칙**: 백엔드 **additive 하위호환** + SDK **public surface 불변**(내부 파싱/쿼리만) → 앱은 SDK 버전 bump 만으로 채택, 강제 동시 출시 없음.
+> **SCHEMA-CHECK 결과 (로깅 점검)**: 네이티브 3채널(Android/iOS/Capacitor 브릿지)은 **이미 v2 최상위 필드 파싱** → 백엔드 배포만으로 파싱 정상. **Flutter 만** `json['data']` 래퍼라 파싱 깨짐(수정 필수). `service` 쿼리는 **Flutter 만 전송**(나머지 추가 필요).
 
-### 2.1 응답 스키마 단일화 (F-4)
-- [ ] 계약 확정: `{ found: bool, service, deeplinkPath, resourceId, metadata }`
-- [ ] `deferredParamsService.ts:115` 응답을 계약에 맞게 수정 (`path`→`deeplinkPath`, `params`→`metadata`)
-- [ ] Flutter `eodin_deeplink.dart:128` — `json['data']` 의존 제거, 계약 필드 직접 파싱
-- [ ] Android `EodinDeeplink.kt:114,207` — 계약 필드 확인
-- [ ] iOS `EodinDeeplink.swift:155` — 계약 필드 확인
-- [ ] Capacitor 동일 정렬
+### 2a. 백엔드 (eodin/apps/api) — ✅ 완료 (코드/리뷰/테스트)
+- [x] 통일 v2 응답: canonical `deeplinkPath`/`resourceId`/`metadata` + legacy `path`/`params` **additive** (F-4) — `deferredParamsService.ts`
+- [x] `service` 쿼리 매칭 스코핑(F-6, optional 하위호환) + non-string `service` 400 reject
+- [x] 단위 테스트 6건(`deferredParamsContract.test.ts`: canonical+legacy / 스코핑 유무 / 빈문자 fallback / 배열 400 / 404) — api 전체 29 통과
+- [x] 코드리뷰 PASS(A-) — M1 주석 톤다운(F-6=데이터정합 가드, IDOR 통제 아님), M2 검증 반영
+- [ ] 배포(Railway, main 머지 시 자동) + CHANGELOG additive 명시
 
-### 2.2 요청 계약 + service 스코핑 (F-6)
-- [ ] `GET /deferred-params` 매칭 조건에 `service` 포함 (cross-service 오염 차단)
-- [ ] 4채널 모두 `service` 쿼리 전송 통일 (현재 Flutter 만 전송)
+### 2b. SDK 채널 (eodin-sdk/packages) — ✅ 코드/리뷰 완료 (public surface 불변, SemVer minor)
+- [x] **Flutter**: `eodin_deeplink.dart` `json['data']` 래퍼 제거 → 최상위 파싱(`found`/`deeplinkPath`/`path` 가드). `deferred_params_result.dart` `fromJson` = `deeplinkPath ?? path` / `metadata ?? params`. 테스트 mock v2 갱신 → 17 통과
+- [x] **iOS / Capacitor-iOS**: configure 가드 `let serviceId` + URL `&service=` (F-6)
+- [x] **Android / Capacitor-Android**: URL 2곳(콜백+suspend) `&service=$serviceId`
+- [x] **C1 (code-review CRITICAL) 해소**: 네이티브 4파일에 legacy 폴백 추가(`deeplinkPath ?? path`, `metadata ?? params`) — 백엔드 2a 배포 전/캐시 구버전에서도 네이티브 deferred 무동작 방지, Flutter와 대칭
+- [x] Capacitor web: no-op 유지(의도된 설계)
+- [ ] **빌드**: Flutter analyze+test ✅ / iOS·Android 로컬 빌드 불가(JRE 없음 / swift host ATT 이슈) → **CI 검증 필요**
 
-### 2.3 fingerprint 공식 정리 (F-5)
-- [ ] Phase 3/4 결정에 따라 클라 fingerprint 공식 제거 또는 단일화 — 4채널 동일
+### 2b 후속 (릴리스-prep, code-review 잔여 — release 전 처리)
+- [ ] (H2) 4채널 CHANGELOG + 버전 bump(beta.2): "deferred top-level v2 파싱 + legacy 폴백(F-4) / service 쿼리 스코핑(F-6)"
+- [ ] (M3) 네이티브 파싱 테스트(XCTest/JUnit) — legacy-shape + v2-shape + service 쿼리 전송 (CI)
+- [ ] (H1) Android `$serviceId` non-null 명시(`!!`/local) — 현재 configure 보장이라 latent
+- [ ] (M2) Swift `URLComponents` / Kotlin `URLEncoder` 로 service 인코딩 — 슬러그라 latent (또는 configure 슬러그 정규식 검증)
+- [ ] (M1) 네이티브 200 응답 `found`/path hit 가드 → Flutter 와 정렬 (현재 backend는 hit=200+path/miss=404라 latent)
+
+### 2c. fingerprint 공식 정리 (F-5) — Phase 3/4 의존
+- [ ] Phase 3(Install Referrer)/4(서버매칭) 결정 후 클라 fingerprint 제거/단일화 — 현재 4채널 상이
+- [ ] ⚠️ **계약 완료 ≠ 동작**: 파싱/요청은 4채널 정합이나 **fingerprint 미통일로 실제 매칭은 Phase 3/4 전까지 0%**
+
+### 2c. fingerprint 공식 정리 (F-5) — Phase 3/4 의존
+- [ ] Phase 3(Install Referrer)/4(서버매칭) 결정 후 클라 fingerprint 제거/단일화 — 현재 4채널 상이
 
 ---
 
