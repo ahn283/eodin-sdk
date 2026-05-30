@@ -163,9 +163,6 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [ ] Phase 3(Install Referrer)/4(서버매칭) 결정 후 클라 fingerprint 제거/단일화 — 현재 4채널 상이
 - [ ] ⚠️ **계약 완료 ≠ 동작**: 파싱/요청은 4채널 정합이나 **fingerprint 미통일로 실제 매칭은 Phase 3/4 전까지 0%**
 
-### 2c. fingerprint 공식 정리 (F-5) — Phase 3/4 의존
-- [ ] Phase 3(Install Referrer)/4(서버매칭) 결정 후 클라 fingerprint 제거/단일화 — 현재 4채널 상이
-
 ---
 
 ## Phase 3: Deferred Android 결정론 — Play Install Referrer (P0)
@@ -173,7 +170,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 > F-3 핵심. **설계 확정: `phase3-design.md`** (D1 서버발급 / D2 `eodin_cid=<token>` / D3 Flutter 포함 / D4 24h 유지 / D5 비-Play 는 Phase 4).
 > Play 설치 = 결정론 100%, 그 외 = Phase 4 fallback.
 
-### 3.1 백엔드 + DB (eodin) — ✅ 완료 (코드/리뷰/테스트) · 마이그레이션 배포 대기
+### 3.1 백엔드 + DB (eodin) — ✅ 완료 + **배포(live, eodin-api `7070ab1`, 마이그레이션 자동적용 검증)**
 - [x] Prisma `DeferredParam.clickId String? @unique` + 수동 마이그레이션(`20260530000000_add_deferred_clickid`)
 - [x] `saveDeferredParams`: clickId 저장 + P2002 충돌 idempotent(200) (code-review H1)
 - [x] `getDeferredParams`: `installReferrer`/`clickId` 토큰 결정론 조회 우선, deviceFingerprint fallback (additive)
