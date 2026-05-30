@@ -150,7 +150,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] **Android / Capacitor-Android**: URL 2곳(콜백+suspend) `&service=$serviceId`
 - [x] **C1 (code-review CRITICAL) 해소**: 네이티브 4파일에 legacy 폴백 추가(`deeplinkPath ?? path`, `metadata ?? params`) — 백엔드 2a 배포 전/캐시 구버전에서도 네이티브 deferred 무동작 방지, Flutter와 대칭
 - [x] Capacitor web: no-op 유지(의도된 설계)
-- [x] **빌드**: GitHub Actions CI 추가(`.github/workflows/ci.yml`) + **로컬 전채널 검증 통과** — Flutter analyze(clean)+test 40 / iOS xcodebuild(iOS Sim)+XCTest 26 / Capacitor TS build+jest 64 / Android `./gradlew testDebugUnitTest assembleRelease` 45+AAR. (capacitor/android 는 `:capacitor-android` 호스트 프레임워크 의존이라 standalone 빌드 제외 → 호스트앱 CI)
+- [x] **빌드**: GitHub Actions CI 추가(`.github/workflows/ci.yml`) — **CI 5잡 전부 그린(live)**: Flutter analyze(clean)+test 40 / iOS xcodebuild(iOS Sim)+XCTest 26 / Web+Capacitor TS build+jest(eodin-web 88 + capacitor 64) / Android `./gradlew testDebugUnitTest assembleRelease` 45+AAR. (capacitor/android 는 `:capacitor-android` 호스트 프레임워크 의존이라 standalone 빌드 제외 → 호스트앱 CI). **CI 가 잡아낸 실버그 2건**: ① capacitor web.ts `withLock` noImplicitAny(TS7006) ② capacitor 빌드 전 워크스페이스 의존 `eodin-web` 선빌드 누락(TS2307) — 둘 다 로컬 dist 잔존으로 가려져 있었음
 
 ### 2b 후속 (릴리스-prep, code-review 잔여 — release 전 처리)
 - [ ] (H2) 4채널 CHANGELOG + 버전 bump(beta.2): "deferred top-level v2 파싱 + legacy 폴백(F-4) / service 쿼리 스코핑(F-6)"
@@ -227,7 +227,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ## Phase 6: 검증 / 5앱 회귀
 
-- [x] 4채널 단위 테스트 (계약 파싱 / 매칭) — CI 에서 자동 실행: Flutter 40 / iOS 26 / Capacitor 64 / Android 45 (총 175). ※ 매칭 E2E(설치→회수)는 아래 Play 트랙/TestFlight 항목에서 별도
+- [x] 4채널 단위 테스트 (계약 파싱 / 매칭) — CI 에서 자동 실행: Flutter 40 / iOS 26 / Capacitor 64 / eodin-web 88 / Android 45 (총 263). ※ 매칭 E2E(설치→회수)는 아래 Play 트랙/TestFlight 항목에서 별도
 - [ ] Android Play 내부 테스트 트랙으로 Install Referrer end-to-end (클릭→설치→회수)
 - [ ] iOS TestFlight 확률 매칭 end-to-end
 - [ ] 5개 앱(fridgify/plori/tempy/arden/kidstopia) deferred 회수 회귀
