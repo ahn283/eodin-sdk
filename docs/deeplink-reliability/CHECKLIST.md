@@ -19,7 +19,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
 | Phase 3 (Deferred Android 결정론) | 🚧 3.1 백엔드+3.2 랜딩 **배포(live)** / 3.3 SDK 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함. 매칭은 SDK 회수 후 |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
-| Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
+| Phase 5 (Graceful 실패 + 정리) | ✅ 완료 (eodin `7ef9374`) | F-9 graceful 계약 문서화 + F-8 서버 dead code 제거 |
 | Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
 
 심각도: **P0** 기능 비동작 / **P1** 신뢰성 결함 / **P2** 정확도·정합성·운영
@@ -209,11 +209,13 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ---
 
-## Phase 5: Graceful 실패 + 정리 (P2)
+## Phase 5: Graceful 실패 + 정리 (P2) — ✅ 완료 (eodin `7ef9374`)
 
-- [ ] (F-9) 매칭 실패(404) 시 앱이 홈/온보딩으로 graceful 진입하도록 SDK 가이드/계약 명문화 — 에러 화면 금지
-- [ ] (F-8) 미사용 클라 fingerprint 경로 제거 확인
-- [ ] integration-guide 에 deferred 채택 패턴 갱신 (4채널)
+- [x] (F-9) 매칭 실패(404) graceful 계약 명문화 — integration-guide §1.1 "신규 사용자 에러화면 금지, 홈/온보딩 진입" + SDK 가 `NoParamsFound` 던지는 계약(앱이 catch). README 에도 명시
+- [x] (F-8) **서버 dead code `generateFingerprint` 제거** (+ crypto import). 사용처 0 grep 확인, tsc+43 테스트 회귀 없음
+  - ※ 클라 fingerprint(web `generateClientFingerprint` / SDK `DeviceFingerprint`)는 **Android no-referrer·legacy fallback 으로 여전히 사용 → 의도적 유지**(제거 아님)
+- [x] integration-guide §1.1 deferred 매칭 동작 방식(4채널 공통) + README Deferred Deep Linking 섹션
+- [x] 코드리뷰=self(dead-code 삭제, 신규 로직 0) · 로깅=N/A(이벤트 변경 없음)
 
 ---
 
