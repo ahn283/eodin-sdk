@@ -181,9 +181,12 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] 코드리뷰 PASS(B) — H1/H2 반영
 - [ ] **배포**: main 머지 → `prisma migrate deploy` 로 DB 컬럼 적용 + eodin-api 재배포
 
-### 3.2 링크 생성 측 (eodin apps/web) — web 배포만
-- [ ] 클릭 시 clickId 발급 + row 저장
-- [ ] Android Play Store URL 에 `&referrer=eodin_cid%3D<clickId>` 부착 (intent fallback_url + Download 버튼). iOS 스토어엔 미부착
+### 3.2 링크 생성 측 (eodin apps/web) — ✅ 완료 (코드/리뷰/테스트) · web 배포 대기
+- [x] `page.tsx` 서버에서 `crypto.randomUUID()` clickId 발급 → prop 전달 (D1)
+- [x] `utils/referrer.ts` `withPlayReferrer`: Android Play URL 에 `referrer=eodin_cid=<clickId>` (기존 referrer 머지, M3) + 단위테스트(라운드트립·intent 이중인코딩)
+- [x] 4개 Android 스토어 진입점(intent fallback / legacy / handleDownload / handleOpenApp) 일관 적용, iOS 미부착
+- [x] `saveDeferredParams` 에 clickId 포함 → row 저장
+- [x] 코드리뷰 PASS(B) — M3 머지 / L2 테스트 / M1·I1 신뢰경계 문서화 반영
 
 ### 3.3 SDK 회수 (eodin-sdk) — 앱 출시 필요(Phase 4 와 묶음)
 - [ ] `com.android.installreferrer:installreferrer` — sdk-android + capacitor-android
