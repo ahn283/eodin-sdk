@@ -15,7 +15,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 0 (조사) | ✅ 완료 | forward + deferred 전 경로 점검, 베스트 프랙티스 대비 (PRD §3·§4) |
 | Phase 1 (Forward 긴급 패치) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | F-1/F-2 — 빌드·디자인·코드·로깅·단위테스트 게이트 통과. branch `fix/deeplink-forward-redirect` |
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | H-1 대비 가드 / H-2 스피너 통합 / H-3 in-app 문구 / M·L. i18n 은 1.6 이관 |
-| Phase 1.6 (랜딩 i18n) | ⬜ 대기 | 공통 카탈로그(eodin 보유) + 합집합 13 locale. 번역 소스 결정 후 진행 |
+| Phase 1.6 (랜딩 i18n) | ✅ 코어 완료 (실기기·배포검증 대기) | 13 locale 카탈로그 + Accept-Language 해석 + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
 | Phase 2 (Deferred 계약 통일) | ⬜ 대기 | F-4 / F-5 / F-6 — 응답 스키마·요청 계약 단일화 |
 | Phase 3 (Deferred Android 결정론) | ⬜ 대기 | F-3 — Play Install Referrer |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
@@ -106,20 +106,27 @@ PRD 참고: `./PRD.md` (2026-05-30)
 > **locale 합집합 (13)**: `ar de en es fr hi it ja ko pt ru vi zh` — en fallback, **ar = RTL** `dir`. (plori 고유 ar·it / tempy 고유 hi·vi)
 > **번역 소스 (결정 2026-05-30)**: Claude 가 13 locale MT 초안 작성 + 각 비-en 키에 검수 플래그(`// TODO: native review`). 표준 스토어 문구("Download on the App Store" 등)는 Apple/Google 공식 로컬라이즈 차용.
 
-### 1.6.1 인프라
-- [ ] `apps/web/src/messages/{locale}.json` 카탈로그 + `getDictionary(locale)` 서버 유틸
-- [ ] `Accept-Language` → 지원 locale 해석기 (en fallback) — **URL prefix 라우팅 안 씀** (딥링크 URL 보존)
-- [ ] `layout.tsx` `<html lang>` 동적화 (현재 `ko` 하드코딩 = 버그) + `ar` `dir="rtl"`
-- [ ] dynamic 렌더/헤더 vary 보장 — `[service]` 는 이미 dynamic, `404`/`expired`(static) 처리 결정
+> **상태**: ✅ 코어(딥링크 랜딩 + 404/expired) 완료. feedback/legal 은 1.6.4 후속. 워크플로 게이트(빌드/tsc/디자인리뷰/코드리뷰/단위테스트 47) 통과. 로깅 점검 = N/A.
 
-### 1.6.2 문자열 추출 + 번역
-- [ ] 키 추출 ~35개: `DeepLinkRedirect.tsx` + `404`/`expired`/`feedback` + "Powered by Eodin"
-- [ ] 13 locale 번역 (번역 소스 결정 후)
-- [ ] 컴포넌트 배선 — 서버에서 dict 주입
+### 1.6.1 인프라 ✅
+- [x] `apps/web/src/messages/{locale}.json` 13개 + `utils/i18n.ts`(`getDictionary`/`getMessages`/`resolveLocale`/`isRtl`) + `messages/README.md`
+- [x] `Accept-Language` 해석기 (q-value 정렬 + 강건 파싱, en fallback) — **URL prefix 안 씀**
+- [x] `layout.tsx` `<html lang/dir>` 동적화 (`ko` 하드코딩 버그 수정, ar=RTL)
+- [x] `getDictionary` 를 `Record<Locale, Messages>` 타입주석으로 키 누락 빌드검사 (code-review M2: `as` 캐스트 제거)
 
-### 1.6.3 검증
-- [ ] 워크플로 게이트 (빌드 / 디자인 / 코드 / 단위테스트)
-- [ ] locale 별 렌더 + RTL(ar) 확인
+### 1.6.2 문자열 추출 + 번역 ✅ (코어)
+- [x] 키 추출 ~20개: `DeepLinkRedirect.tsx` + `404`/`expired`
+- [x] 13 locale MT 초안 + `_meta` 검수 플래그 + 스토어 문구 공식 로컬라이즈 차용
+- [x] 컴포넌트/페이지 배선 — 서버에서 `messages.deeplink` 주입 (client 번들에 JSON 미포함, type-only import)
+
+### 1.6.3 검증 ✅(코드) / 대기(실기기·배포)
+- [x] 워크플로 게이트: 빌드/tsc clean · 디자인리뷰(A-) · 코드리뷰(PASS) · 단위테스트 `i18n.test.ts` 9건
+- [x] 리뷰 반영: resolveLocale 강건화(M1) · RTL 상태점 논리속성(design M1) · 404/expired 브랜드 오렌지(design M3) · interpolate dead code 제거
+- [ ] **실기기**: locale별 렌더 + RTL(ar) + 360dp 최장번역(de/fr) CTA 한 줄 (design L3)
+- [ ] **배포 검증 (design M2)**: Accept-Language SSR 의 CDN 캐시 `Vary: Accept-Language` — 언어 오노출 방지 (현재 pages dynamic·standalone SSR 이라 Next 자체 캐시는 없음, 앞단 CDN 설정 확인)
+
+### 1.6.4 후속 (분리)
+- [ ] `feedback/[service]/[formId]` (632줄 폼) + `legal/[service]/[type]` i18n + "Powered by Eodin" — 별도 작업
 
 ---
 
