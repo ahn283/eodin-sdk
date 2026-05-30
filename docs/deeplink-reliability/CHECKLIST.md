@@ -231,6 +231,14 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ---
 
+## 문서 동기화 (README / 가이드) — 잊지 말 것
+
+- [x] eodin `README.md`: API endpoint 버그 수정(`link.eodin.app/api/v1` → `api.eodin.app/api/v1`, 코드 예제 전부) + `/api/v1/deferred-params` v2 문서(installReferrer/clickId + 응답 필드) + "api vs link 도메인" 주의
+- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `docs/guide/integration-guide.md` deferred 섹션 — Install Referrer(Android) + 서버 확률매칭(iOS) 동작 + v2 응답 필드. (현재 public API `checkDeferredParams()`/`params.path` 불변이라 사용 예제는 유효)
+- [ ] **Phase 3.3/4 완료 시**: eodin-sdk `README.md` + `migration-guide.md`(SemVer bump 사유) + 4채널 CHANGELOG
+- [ ] eodin `README.md:231` `docs/deferred-deeplink-architecture-comparison.md` 최신화 여부 점검(fingerprint→Install Referrer 전환 반영)
+- 원칙: **각 Phase 완료 = 관련 README/가이드 동시 갱신** (배포/릴리스 전 동기화)
+
 ## 메모 / 의사결정 대기
 
 - [ ] Phase 1 을 deferred 재설계보다 먼저 단독 릴리스할지(권장) 결정
