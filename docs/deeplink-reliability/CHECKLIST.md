@@ -17,7 +17,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ 코드/리뷰/테스트 완료 (실기기 검증 대기) | H-1 대비 가드 / H-2 스피너 통합 / H-3 in-app 문구 / M·L. i18n 은 1.6 이관 |
 | Phase 1.6 (랜딩 i18n) | ✅ 코어 완료 (실기기·배포검증 대기) | 13 locale 카탈로그 + Accept-Language 해석 + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
 | Phase 2 (Deferred 계약 통일) | ✅ 2a 백엔드 + 2b SDK 4채널 완료 (릴리스-prep·CI 검증 대기) | F-4/F-6. additive 하위호환. ⚠️ 매칭은 Phase 3/4 전까지 0% |
-| Phase 3 (Deferred Android 결정론) | ⬜ 대기 | F-3 — Play Install Referrer |
+| Phase 3 (Deferred Android 결정론) | 🚧 설계 확정(`phase3-design.md`) / 구현 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함 |
 | Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
 | Phase 5 (Graceful 실패 + 정리) | ⬜ 대기 | F-9 + dead code 제거 |
 | Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
@@ -169,21 +169,28 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ## Phase 3: Deferred Android 결정론 — Play Install Referrer (P0)
 
-> F-3 핵심. Play 설치는 결정론, 그 외는 Phase 4 로 fallback.
+> F-3 핵심. **설계 확정: `phase3-design.md`** (D1 서버발급 / D2 `eodin_cid=<token>` / D3 Flutter 포함 / D4 24h 유지 / D5 비-Play 는 Phase 4).
+> Play 설치 = 결정론 100%, 그 외 = Phase 4 fallback.
 
-### 3.1 링크 생성 측 (eodin)
-- [ ] 스토어 URL/referrer 에 click 토큰(`clickId`/`linkId`) 주입 설계
-- [ ] click 레코드에 토큰 저장 (조회 시 1:1 매칭용)
+### 3.1 백엔드 + DB (eodin) — additive, 단독 배포 가능
+- [ ] Prisma `DeferredParam.clickId String? @unique` + 마이그레이션
+- [ ] `saveDeferredParams`: clickId 발급(서버)/저장
+- [ ] `getDeferredParams`: `installReferrer`/`clickId` 쿼리 → 토큰 결정론 조회 우선, 없으면 기존 경로 fallback (additive)
+- [ ] referrer 파싱(`eodin_cid=<token>`) 유틸 + 단위테스트
 
-### 3.2 SDK 회수 (eodin-sdk)
-- [ ] `com.android.installreferrer` 의존성 추가 (Android / Flutter plugin / Capacitor)
-- [ ] `InstallReferrerClient` 로 referrer 회수 → 토큰 추출
-- [ ] `GET /deferred-params` 에 `installReferrer`/토큰 전달, 결정론 매칭
-- [ ] referrer 없음(OEM 스토어) → Phase 4 확률 매칭 fallback
+### 3.2 링크 생성 측 (eodin apps/web) — web 배포만
+- [ ] 클릭 시 clickId 발급 + row 저장
+- [ ] Android Play Store URL 에 `&referrer=eodin_cid%3D<clickId>` 부착 (intent fallback_url + Download 버튼). iOS 스토어엔 미부착
 
-### 3.3 백엔드
-- [ ] 토큰 기반 결정론 lookup 추가 (`deferredParamsService`)
-- [ ] fingerprint 완전일치 경로 제거(또는 fallback 으로 격하)
+### 3.3 SDK 회수 (eodin-sdk) — 앱 출시 필요(Phase 4 와 묶음)
+- [ ] `com.android.installreferrer:installreferrer` — sdk-android + capacitor-android
+- [ ] **Flutter**: `android_play_install_referrer` 플러그인 회수 (D3)
+- [ ] `InstallReferrerClient.getInstallReferrer()` → `eodin_cid` 추출 → `GET ?installReferrer=&service=` 결정론
+- [ ] clickId 없으면 기존 경로 fallback. public surface 불변
+- [ ] 연결 실패/타이밍 backoff
+
+### 3.4 검증
+- [ ] 단위(referrer 파싱 / 백엔드 결정론 조회+fallback) + Play 내부 테스트 트랙 E2E (클릭→설치→회수→딥링크)
 
 ---
 
