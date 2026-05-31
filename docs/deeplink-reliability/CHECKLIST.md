@@ -17,10 +17,10 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ **머지·배포(live)** — 실기기 QA만 대기 | H-1/H-2/H-3 + M·L. i18n 은 1.6 이관 |
 | Phase 1.6 (랜딩 i18n) | ✅ **머지·배포(live)** — curl 검증(ko/ja lang+문구, 캐시 no-store) 완료 | 13 locale + Accept-Language + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
 | Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
-| Phase 3 (Deferred Android 결정론) | 🚧 3.1+3.2 **배포(live)** / 3.3 SDK 코드·리뷰 완료(CI·앱출시 대기) | F-3 — Play Install Referrer. clickId, Flutter 포함 |
+| Phase 3 (Deferred Android 결정론) | 🚧 3.1+3.2 **배포(live)** / 3.3 SDK 코드·리뷰·**CI 완료**(앱출시 대기) | F-3 — Play Install Referrer. clickId, Flutter 포함 |
 | Phase 4 (Deferred iOS 서버 확률) | 🚧 4.1 백엔드 IP매칭 **배포(live)** | F-7/F-8 — clickIp+모호성가드+atomic claim. 기존 iOS SDK로 동작 |
-| Phase 5 (Graceful 실패 + 정리) | 🚧 F-9 가이드/계약 + 문서 동기화 **완료** / F-8 dead code(eodin repo) 잔여 | F-9 + dead code 제거 |
-| Phase 6 (검증 / 5앱 회귀) | ⬜ 대기 | 4채널 + fridgify/plori/tempy/arden/kidstopia |
+| Phase 5 (Graceful 실패 + 정리) | ✅ 완료 — F-9 graceful 계약(eodin `7ef9374` + SDK 5채널 README/integration/migration-guide) + F-8 서버 dead code 제거 | F-9 + dead code 제거 |
+| Phase 6 (검증 / 5앱 회귀) | 🚧 codeable + **CI(5잡 green, live)** 완료 / E2E·5앱·앱출시 ⛔ 외부 | beta.2 release-prep `d165cae`. 잔여=태그→앱출시 |
 
 심각도: **P0** 기능 비동작 / **P1** 신뢰성 결함 / **P2** 정확도·정합성·운영
 
@@ -217,30 +217,39 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ---
 
-## Phase 5: Graceful 실패 + 정리 (P2)
+## Phase 5: Graceful 실패 + 정리 (P2) — ✅ 완료 (eodin `7ef9374`)
 
-- [x] (F-9) 매칭 실패(404) 시 앱이 홈/온보딩으로 graceful 진입하도록 SDK 가이드/계약 명문화 — 에러 화면 금지. **5채널 README + integration-guide §3 + migration-guide 에 "에러 화면 금지, 일반 홈 graceful 진입" 명문화**. no-match 표면 채널차(Flutter throw / Capacitor native reject·web hasParams:false / iOS·Android noParamsFound) 문서화 (브랜치 `feat/deeplink-allchannel-docs`)
-- [ ] (F-8) 미사용 클라 fingerprint 경로 제거 확인 — **eodin repo `generateFingerprint` (apps/api). 본 SDK repo 외**
-- [x] integration-guide 에 deferred 채택 패턴 갱신 (4채널) — §3 공통 매칭 메커니즘 표(결정론/best-effort) + ATT 무관 + call-once(서버 atomic claim) 명문화
+- [x] (F-9) 매칭 실패(404) graceful 계약 명문화 — integration-guide §1.1+§3 "신규 사용자 에러화면 금지, 홈/온보딩 진입" + SDK `NoParamsFound` 계약(앱이 catch). **5채널 README + migration-guide** 에도 동일 명문화. no-match 표면 채널차(Flutter throw / Capacitor native reject·web hasParams:false / iOS·Android noParamsFound) 문서화
+- [x] (F-8) **서버 dead code `generateFingerprint` 제거** (+ crypto import, eodin `7ef9374`). 사용처 0 grep 확인, tsc+43 테스트 회귀 없음
+  - ※ 클라 fingerprint(web `generateClientFingerprint` / SDK `DeviceFingerprint`)는 **Android no-referrer·legacy fallback 으로 여전히 사용 → 의도적 유지**(제거 아님)
+- [x] integration-guide §1.1(매칭 동작 방식 4채널 공통) + §3(채널 매칭 메커니즘 표, 서버 atomic claim·ATT 무관) + 5채널 README Deferred Deep Linking 섹션
+- [x] 코드리뷰=self(dead-code 삭제, 신규 로직 0) · 로깅=N/A(이벤트 변경 없음)
 
 ---
 
-## Phase 6: 검증 / 5앱 회귀
+## Phase 6: 검증 / 5앱 회귀 — codeable ✅ / E2E·5앱 ⛔ 외부 게이트
 
-- [x] 4채널 단위 테스트 (계약 파싱 / 매칭) — CI 에서 자동 실행: Flutter 40 / iOS 26 / Capacitor 64 / eodin-web 88 / Android 45 (총 263). ※ 매칭 E2E(설치→회수)는 아래 Play 트랙/TestFlight 항목에서 별도
-- [ ] Android Play 내부 테스트 트랙으로 Install Referrer end-to-end (클릭→설치→회수)
-- [ ] iOS TestFlight 확률 매칭 end-to-end
-- [ ] 5개 앱(fridgify/plori/tempy/arden/kidstopia) deferred 회수 회귀
-- [ ] SemVer/CHANGELOG (breaking — deferred 계약 변경)
-- [ ] senior-code-review (4채널 parity + public surface)
+- [x] 4채널 단위 테스트 — **CI 자동 실행(5잡 green, `.github/workflows/ci.yml`)**: Flutter 40 / iOS XCTest 26 / Android JUnit 45 / Capacitor 64 / eodin-web 88 (총 263) + api 43(eodin repo). 네이티브 로컬 빌드 막힘은 CI 로 해소
+- [x] **SemVer/CHANGELOG**: `v2.0.0-beta.2` 4채널 bump(Flutter/Android/Capacitor/iOS, web 제외) + CHANGELOG 4개 + podspec repo 정정 (`d165cae`)
+- [x] **최종 senior-code-review (4채널 parity + public surface)**: **GO(conditional)** — 코드 블로커 0, public surface 불변(SemVer minor), 이전 finding 전부 반영 확인
+- [ ] ⛔ **Android Play 내부 트랙 E2E** (클릭→설치→회수) — 기기/Play 콘솔 필요
+- [ ] ⛔ **iOS TestFlight 확률매칭 E2E** — 기기 필요
+- [ ] ⛔ **5앱 deferred 회수 회귀** (fridgify/plori/tempy/arden/kidstopia) — 앱 + 스토어 출시 필요
+- [→] 다음 사이클(비블로커): 네이티브 200-hit 가드 parity, Android `serviceId` non-null 명시
+
+### 릴리스 잔여 게이트 (외부 — 사장님/CI)
+1. ✅ eodin-sdk **CI 5잡 green** — 본 PR(`feat/deeplink-allchannel-docs` → main) 머지로 beta.2 코드+CI 를 main 에 반영
+2. **git tag `v2.0.0-beta.2`** + (pub.dev/npm/Maven publish 시) 배포
+3. 5앱 dependency 태그 bump → **App Store / Play Store 출시**
 
 ---
 
 ## 문서 동기화 (README / 가이드) — 잊지 말 것
 
 - [x] eodin `README.md`: API endpoint 버그 수정(`link.eodin.app/api/v1` → `api.eodin.app/api/v1`, 코드 예제 전부) + `/api/v1/deferred-params` v2 문서(installReferrer/clickId + 응답 필드) + "api vs link 도메인" 주의
-- [x] eodin-sdk `docs/guide/integration-guide.md` deferred 섹션 — Install Referrer(Android) + 서버 확률매칭(iOS) 동작 + v2 응답 필드. (현재 public API `checkDeferredParams()`/`params.path` 불변이라 사용 예제는 유효). 5채널 README(Flutter/iOS/Android/Capacitor) deferred 매칭 메커니즘·신뢰도·call-once·F-9 동기화 포함
-- [x] `migration-guide.md`(beta.2 deferred 동작 변경: public surface 불변·Android Play 재출시 필요·iOS ATT 무관·no-match graceful) + 4채널 CHANGELOG(d165cae). root `README.md` 는 개요 한 줄(상세는 채널 README) — 별도 갱신 불요
+- [x] eodin-sdk `README.md` **Deferred Deep Linking 섹션** (`cbfa31c`) + 5채널 패키지 README(Flutter/iOS/Android/Capacitor) deferred 매칭 메커니즘·신뢰도·call-once·F-9 동기화
+- [x] `docs/guide/integration-guide.md` §1.1(매칭 동작 방식 플랫폼별) + §3(채널 매칭 메커니즘 표) + graceful + api 도메인 + v2 응답 필드 (public API `checkDeferredParams()`/`params.path` 불변이라 예제 유효)
+- [x] `migration-guide.md`(beta.2 deferred 동작 변경: public surface 불변·Android Play 재출시·iOS ATT 무관·no-match graceful) + 4채널 CHANGELOG(`d165cae`). root `README.md` 는 개요 한 줄 — 별도 갱신 불요
 - [ ] eodin `README.md:231` `docs/deferred-deeplink-architecture-comparison.md` 최신화 여부 점검(fingerprint→Install Referrer 전환 반영)
 - 원칙: **각 Phase 완료 = 관련 README/가이드 동시 갱신** (배포/릴리스 전 동기화)
 

@@ -69,9 +69,33 @@ await EodinAnalytics.configure({
 EodinAnalytics.track(EodinEvent.AppOpen);
 ```
 
+## Deferred Deep Linking
+
+A link tapped *before* the app is installed is restored on first launch — your app
+just calls `checkDeferredParams()`. Matching is automatic per platform:
+
+- **Android (Play installs)** — deterministic via the Play **Install Referrer**: the
+  landing embeds a click token (`eodin_cid`) in the store URL and the SDK reads it
+  back after install (~100% on Play). Requires SDK ≥ `2.0.0-beta.2`.
+- **iOS / non-Play installs** — **server-side probabilistic** match (client IP +
+  service + short time window). Best-effort; no app release needed for the baseline.
+
+```dart
+final params = await EodinDeeplink.checkDeferredParams();
+if (params.hasParams) navigate(params.path); // e.g. "product/123"
+```
+
+The API is identical across all 4 channels and stable across SDK versions
+(`checkDeferredParams()` → `path` / `resourceId` / `metadata`). Always handle the
+"no params" case gracefully (organic install) — route to home, never an error screen.
+
+→ Full per-channel setup: **[Integration Guide](docs/guide/integration-guide.md)**.
+
 ## Documentation
 
-- See [`docs/`](docs/) for PRD, migration guide, and checklist.
+- **[Integration Guide](docs/guide/integration-guide.md)** — per-channel setup (configure, events, ATT, GDPR, deferred deep link)
+- **[Migration Guide](docs/guide/migration-guide.md)** — v1 → v2 breaking changes
+- [`docs/`](docs/) — PRD, checklists, reviews
 
 ### API reference (Phase 1.8 auto-generated)
 
