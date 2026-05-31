@@ -1,6 +1,6 @@
 {
   "name": "@eodin/capacitor",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0-beta.2",
   "description": "Eodin SDK for Capacitor - Deferred Deep Link & Analytics",
   "repository": {
     "type": "git",

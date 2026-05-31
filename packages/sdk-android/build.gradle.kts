@@ -39,15 +39,29 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    testOptions {
+        unitTests {
+            // android.util.Log / framework stubs return defaults instead of
+            // throwing "not mocked" in pure-JVM unit tests (e.g. loading
+            // EodinAnalytics, which calls android.util.Log).
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // Play Install Referrer — deterministic deferred deep link match (Phase 3, F-3)
+    implementation("com.android.installreferrer:installreferrer:2.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("io.mockk:mockk:1.13.8")
+    // Real org.json on the unit-test classpath — the android.jar stub's
+    // JSONObject throws "not mocked" (AttributionTest uses toJson()/fromJson()).
+    testImplementation("org.json:json:20231013")
 
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
@@ -80,7 +94,7 @@ publishing {
             // npm (@eodin/capacitor) naming conventions.
             groupId = "app.eodin"
             artifactId = "eodin-sdk"
-            version = "2.0.0-beta.1"
+            version = "2.0.0-beta.2"
 
             afterEvaluate {
                 from(components["release"])

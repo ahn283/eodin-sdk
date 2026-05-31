@@ -8,7 +8,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ---
 
-## 진행 상태 (Last update: 2026-05-30)
+## 진행 상태 (Last update: 2026-05-31)
 
 | Phase | 상태 | 비고 |
 |---|---|---|
@@ -17,10 +17,10 @@ PRD 참고: `./PRD.md` (2026-05-30)
 | Phase 1.5 (랜딩 디자인 정합성) | ✅ **머지·배포(live)** — 실기기 QA만 대기 | H-1/H-2/H-3 + M·L. i18n 은 1.6 이관 |
 | Phase 1.6 (랜딩 i18n) | ✅ **머지·배포(live)** — curl 검증(ko/ja lang+문구, 캐시 no-store) 완료 | 13 locale + Accept-Language + 동적 lang/dir. feedback/legal 은 1.6.4 후속 |
 | Phase 2 (Deferred 계약 통일) | ✅ 머지 완료 / **백엔드(2a) 배포(live, eodin-api `e7170dc`)** · SDK(2b) 릴리스-prep 대기 | F-4/F-6 additive. ⚠️ 매칭은 Phase 3/4 전까지 0% |
-| Phase 3 (Deferred Android 결정론) | 🚧 3.1 백엔드+3.2 랜딩 **배포(live)** / 3.3 SDK 대기 | F-3 — Play Install Referrer. clickId 토큰, Flutter 포함. 매칭은 SDK 회수 후 |
-| Phase 4 (Deferred iOS 서버 확률) | ⬜ 대기 | F-3 / F-7 / F-8 — 서버사이드 fuzzy 매칭 |
-| Phase 5 (Graceful 실패 + 정리) | ✅ 완료 (eodin `7ef9374`) | F-9 graceful 계약 문서화 + F-8 서버 dead code 제거 |
-| Phase 6 (검증 / 5앱 회귀) | 🚧 codeable 완료(테스트+CHANGELOG+사인오프 GO) / E2E·5앱·CI ⛔ 외부 | beta.2 release-prep `d165cae`. 잔여=CI green→태그→앱출시 |
+| Phase 3 (Deferred Android 결정론) | 🚧 3.1+3.2 **배포(live)** / 3.3 SDK 코드·리뷰·**CI 완료**(앱출시 대기) | F-3 — Play Install Referrer. clickId, Flutter 포함 |
+| Phase 4 (Deferred iOS 서버 확률) | 🚧 4.1 백엔드 IP매칭 **배포(live)** | F-7/F-8 — clickIp+모호성가드+atomic claim. 기존 iOS SDK로 동작 |
+| Phase 5 (Graceful 실패 + 정리) | ✅ 완료 — F-9 graceful 계약(eodin `7ef9374` + SDK 5채널 README/integration/migration-guide) + F-8 서버 dead code 제거 | F-9 + dead code 제거 |
+| Phase 6 (검증 / 5앱 회귀) | 🚧 codeable + **CI(5잡 green, live)** 완료 / E2E·5앱·앱출시 ⛔ 외부 | beta.2 release-prep `d165cae`. 잔여=태그→앱출시 |
 
 심각도: **P0** 기능 비동작 / **P1** 신뢰성 결함 / **P2** 정확도·정합성·운영
 
@@ -150,7 +150,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] **Android / Capacitor-Android**: URL 2곳(콜백+suspend) `&service=$serviceId`
 - [x] **C1 (code-review CRITICAL) 해소**: 네이티브 4파일에 legacy 폴백 추가(`deeplinkPath ?? path`, `metadata ?? params`) — 백엔드 2a 배포 전/캐시 구버전에서도 네이티브 deferred 무동작 방지, Flutter와 대칭
 - [x] Capacitor web: no-op 유지(의도된 설계)
-- [ ] **빌드**: Flutter analyze+test ✅ / iOS·Android 로컬 빌드 불가(JRE 없음 / swift host ATT 이슈) → **CI 검증 필요**
+- [x] **빌드**: GitHub Actions CI 추가(`.github/workflows/ci.yml`) — **CI 5잡 전부 그린(live)**: Flutter analyze(clean)+test 40 / iOS xcodebuild(iOS Sim)+XCTest 26 / Web+Capacitor TS build+jest(eodin-web 88 + capacitor 64) / Android `./gradlew testDebugUnitTest assembleRelease` 45+AAR. (capacitor/android 는 `:capacitor-android` 호스트 프레임워크 의존이라 standalone 빌드 제외 → 호스트앱 CI). **CI 가 잡아낸 실버그 2건**: ① capacitor web.ts `withLock` noImplicitAny(TS7006) ② capacitor 빌드 전 워크스페이스 의존 `eodin-web` 선빌드 누락(TS2307) — 둘 다 로컬 dist 잔존으로 가려져 있었음
 
 ### 2b 후속 (릴리스-prep, code-review 잔여 — release 전 처리)
 - [ ] (H2) 4채널 CHANGELOG + 버전 bump(beta.2): "deferred top-level v2 파싱 + legacy 폴백(F-4) / service 쿼리 스코핑(F-6)"
@@ -185,12 +185,14 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [x] `saveDeferredParams` 에 clickId 포함 → row 저장
 - [x] 코드리뷰 PASS(B) — M3 머지 / L2 테스트 / M1·I1 신뢰경계 문서화 반영
 
-### 3.3 SDK 회수 (eodin-sdk) — 앱 출시 필요(Phase 4 와 묶음)
-- [ ] `com.android.installreferrer:installreferrer` — sdk-android + capacitor-android
-- [ ] **Flutter**: `android_play_install_referrer` 플러그인 회수 (D3)
-- [ ] `InstallReferrerClient.getInstallReferrer()` → `eodin_cid` 추출 → `GET ?installReferrer=&service=` 결정론
-- [ ] clickId 없으면 기존 경로 fallback. public surface 불변
-- [ ] 연결 실패/타이밍 backoff
+### 3.3 SDK 회수 (eodin-sdk) — ✅ 코드/리뷰 완료 · **Android 빌드 CI·앱 출시 대기**
+- [x] `com.android.installreferrer:installreferrer:2.2` — sdk-android + capacitor-android (`InstallReferrerReader.kt`, CountDownLatch 동기 회수 + 캐시)
+- [x] **Flutter**: `android_play_install_referrer` 회수 (`_readInstallReferrer`, Platform.isAndroid 가드) — analyze + 17 테스트 통과
+- [x] eodin_cid 있으면 `?service=&installReferrer=` 결정론, 없으면 deviceId fingerprint fallback. public surface 불변(SemVer minor)
+- [x] iOS/Capacitor-iOS 미변경(Android 전용, iOS는 Phase 4)
+- [x] 코드리뷰 PASS(B) — H1(메인스레드 가드)/H2(캐시 무한재시도)/M1(Uri.Builder 인코딩)/M2/L1/L2 반영. M3(CHANGELOG)·L3(버전)는 release-prep
+- [x] **빌드**: CI(`.github/workflows/ci.yml`) + 로컬 검증 통과 — Android `sdk-android` 는 standalone gradle 스캐폴딩(settings/wrapper, AGP 8.2.1/Kotlin 1.9.10/Gradle 8.7) 추가 후 `testDebugUnitTest assembleRelease` 그린(45). capacitor-android 는 호스트앱 CI(별도)
+- [ ] **앱 출시**(Phase 4와 묶음) 후 실제 동작
 
 ### 3.4 검증
 - [ ] 단위(referrer 파싱 / 백엔드 결정론 조회+fallback) + Play 내부 테스트 트랙 E2E (클릭→설치→회수→딥링크)
@@ -199,30 +201,36 @@ PRD 참고: `./PRD.md` (2026-05-30)
 
 ## Phase 4: Deferred iOS 서버 확률 매칭 (P0/P2)
 
-> F-3 / F-7 / F-8. 클라 토큰 폐기, 서버가 신호로 fuzzy 매칭.
+> F-3 / F-7 / F-8. 서버가 IP 신호로 fuzzy 매칭. **백엔드 IP 매칭은 기존 iOS SDK(req.ip 사용)로 동작 → 앱 출시 없이 배포만으로 iOS deferred 베이스라인.**
 
-- [ ] click 시점 서버 저장: IP + UA + Accept-Language + timestamp (`generateFingerprint:31` 재활용, F-8 dead code 정상화)
-- [ ] 설치 후 조회 시 서버가 동일 신호로 best-match
-- [ ] **매칭 윈도우 ≤5분~1h** + 신호 유사도 가중치 (F-7) — 24h/최신순 폐기
-- [ ] 만료/claimed 정리 정책 재정의
-- [ ] 오매칭(공용 IP) 방어 테스트
+### 4.1 백엔드 IP 확률매칭 (eodin/apps/api) — ✅ 완료 (코드/리뷰/테스트) · 배포 대기
+- [x] click 시 서버 IP 저장: `DeferredParam.clickIp` + 인덱스 + 마이그레이션. `saveDeferredParams` 가 `req.ip`(trust proxy=1) 저장
+- [x] `getDeferredParams`: 결정론/정확fingerprint miss 시 `clickIp==req.ip` + service scope + **60분 윈도우** 최신순 확률 fallback. `matchType` 응답
+- [x] **오매칭 방어(F-7)**: 공용 IP 모호성 가드 — 후보 ≥2면 미반환(code-review H1). atomic claim(updateMany where claimed:false → 더블 어트리뷰션 방지, H2)
+- [x] 단위테스트 +5 (clickIp/IP fallback/모호성/clickId시 미실행/matchType) — api 43 통과. 코드리뷰 PASS(B)
+- [x] 배포 완료 — eodin-api `800a99c` SUCCESS, 마이그 자동적용 + 확률경로 404 검증
+- [→] (M1) 윈도우 60분 — PRD ≤5분 권장 대비 install 지연 고려한 절충. 추후 튜닝
+- [→] F-8 dead code `generateFingerprint` 제거 → Phase 5
+
+### 4.2 (선택, 후속) iOS SDK 신호 보강 — 앱 출시 필요
+- [ ] iOS SDK 가 device 신호(OS/locale/screen) 전송 → 서버 가중치 매칭 정확도↑ (IP-only 베이스라인 위 enhancement)
 
 ---
 
 ## Phase 5: Graceful 실패 + 정리 (P2) — ✅ 완료 (eodin `7ef9374`)
 
-- [x] (F-9) 매칭 실패(404) graceful 계약 명문화 — integration-guide §1.1 "신규 사용자 에러화면 금지, 홈/온보딩 진입" + SDK 가 `NoParamsFound` 던지는 계약(앱이 catch). README 에도 명시
-- [x] (F-8) **서버 dead code `generateFingerprint` 제거** (+ crypto import). 사용처 0 grep 확인, tsc+43 테스트 회귀 없음
+- [x] (F-9) 매칭 실패(404) graceful 계약 명문화 — integration-guide §1.1+§3 "신규 사용자 에러화면 금지, 홈/온보딩 진입" + SDK `NoParamsFound` 계약(앱이 catch). **5채널 README + migration-guide** 에도 동일 명문화. no-match 표면 채널차(Flutter throw / Capacitor native reject·web hasParams:false / iOS·Android noParamsFound) 문서화
+- [x] (F-8) **서버 dead code `generateFingerprint` 제거** (+ crypto import, eodin `7ef9374`). 사용처 0 grep 확인, tsc+43 테스트 회귀 없음
   - ※ 클라 fingerprint(web `generateClientFingerprint` / SDK `DeviceFingerprint`)는 **Android no-referrer·legacy fallback 으로 여전히 사용 → 의도적 유지**(제거 아님)
-- [x] integration-guide §1.1 deferred 매칭 동작 방식(4채널 공통) + README Deferred Deep Linking 섹션
+- [x] integration-guide §1.1(매칭 동작 방식 4채널 공통) + §3(채널 매칭 메커니즘 표, 서버 atomic claim·ATT 무관) + 5채널 README Deferred Deep Linking 섹션
 - [x] 코드리뷰=self(dead-code 삭제, 신규 로직 0) · 로깅=N/A(이벤트 변경 없음)
 
 ---
 
 ## Phase 6: 검증 / 5앱 회귀 — codeable ✅ / E2E·5앱 ⛔ 외부 게이트
 
-- [~] 4채널 단위 테스트: **Flutter 17 + api 43 ✅** / 네이티브(iOS XCTest·Android JUnit) ⛔ 로컬 빌드 불가 → **CI**
-- [x] **SemVer/CHANGELOG**: `v2.0.0-beta.2` 4채널 bump(Flutter/Android/Capacitor/iOS, web 제외) + CHANGELOG 4개 + podspec repo 정정 (branch `feat/deferred-phase3-sdk` `d165cae`)
+- [x] 4채널 단위 테스트 — **CI 자동 실행(5잡 green, `.github/workflows/ci.yml`)**: Flutter 40 / iOS XCTest 26 / Android JUnit 45 / Capacitor 64 / eodin-web 88 (총 263) + api 43(eodin repo). 네이티브 로컬 빌드 막힘은 CI 로 해소
+- [x] **SemVer/CHANGELOG**: `v2.0.0-beta.2` 4채널 bump(Flutter/Android/Capacitor/iOS, web 제외) + CHANGELOG 4개 + podspec repo 정정 (`d165cae`)
 - [x] **최종 senior-code-review (4채널 parity + public surface)**: **GO(conditional)** — 코드 블로커 0, public surface 불변(SemVer minor), 이전 finding 전부 반영 확인
 - [ ] ⛔ **Android Play 내부 트랙 E2E** (클릭→설치→회수) — 기기/Play 콘솔 필요
 - [ ] ⛔ **iOS TestFlight 확률매칭 E2E** — 기기 필요
@@ -230,7 +238,7 @@ PRD 참고: `./PRD.md` (2026-05-30)
 - [→] 다음 사이클(비블로커): 네이티브 200-hit 가드 parity, Android `serviceId` non-null 명시
 
 ### 릴리스 잔여 게이트 (외부 — 사장님/CI)
-1. eodin-sdk **CI Android 빌드 green** 확인 → `feat/deferred-phase3-sdk` main 머지
+1. ✅ eodin-sdk **CI 5잡 green** — 본 PR(`feat/deeplink-allchannel-docs` → main) 머지로 beta.2 코드+CI 를 main 에 반영
 2. **git tag `v2.0.0-beta.2`** + (pub.dev/npm/Maven publish 시) 배포
 3. 5앱 dependency 태그 bump → **App Store / Play Store 출시**
 
@@ -239,9 +247,9 @@ PRD 참고: `./PRD.md` (2026-05-30)
 ## 문서 동기화 (README / 가이드) — 잊지 말 것
 
 - [x] eodin `README.md`: API endpoint 버그 수정(`link.eodin.app/api/v1` → `api.eodin.app/api/v1`, 코드 예제 전부) + `/api/v1/deferred-params` v2 문서(installReferrer/clickId + 응답 필드) + "api vs link 도메인" 주의
-- [x] eodin-sdk `README.md` **Deferred Deep Linking 섹션** (Android Install Referrer / iOS 서버 확률, 사용 예제, graceful) — GitHub repo 첫 화면 렌더링 = 공개 가이드 (Pages 불필요, `cbfa31c`)
-- [x] `docs/guide/integration-guide.md §1.1` deferred 매칭 동작 방식(플랫폼별) + graceful + api 도메인
-- [ ] **release-prep 시**: `migration-guide.md`(SemVer bump 사유) + 4채널 CHANGELOG (beta.2)
+- [x] eodin-sdk `README.md` **Deferred Deep Linking 섹션** (`cbfa31c`) + 5채널 패키지 README(Flutter/iOS/Android/Capacitor) deferred 매칭 메커니즘·신뢰도·call-once·F-9 동기화
+- [x] `docs/guide/integration-guide.md` §1.1(매칭 동작 방식 플랫폼별) + §3(채널 매칭 메커니즘 표) + graceful + api 도메인 + v2 응답 필드 (public API `checkDeferredParams()`/`params.path` 불변이라 예제 유효)
+- [x] `migration-guide.md`(beta.2 deferred 동작 변경: public surface 불변·Android Play 재출시·iOS ATT 무관·no-match graceful) + 4채널 CHANGELOG(`d165cae`). root `README.md` 는 개요 한 줄 — 별도 갱신 불요
 - [ ] eodin `README.md:231` `docs/deferred-deeplink-architecture-comparison.md` 최신화 여부 점검(fingerprint→Install Referrer 전환 반영)
 - 원칙: **각 Phase 완료 = 관련 README/가이드 동시 갱신** (배포/릴리스 전 동기화)
 

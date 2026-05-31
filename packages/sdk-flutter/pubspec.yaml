@@ -1,6 +1,6 @@
 name: eodin_sdk
 description: Eodin SDK for Flutter — Analytics + Deferred Deep Link (and future Auth). Renamed from eodin_deeplink in v2.0.0 — host apps update pubspec dependency name + imports during Phase 5 migration.
-version: 2.0.0-beta.1
+version: 2.0.0-beta.2
 homepage: https://github.com/ahn283/eodin-sdk
 repository: https://github.com/ahn283/eodin-sdk
 issue_tracker: https://github.com/ahn283/eodin-sdk/issues
@@ -20,6 +20,8 @@ dependencies:
   connectivity_plus: ^6.0.4
   hive: ^2.2.3
   path_provider: ^2.1.0
+  # Play Install Referrer — deterministic deferred deep link match on Android (Phase 3, F-3)
+  android_play_install_referrer: ^0.4.0
 
 dev_dependencies:
   flutter_test:

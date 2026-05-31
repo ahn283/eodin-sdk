@@ -1,11 +1,11 @@
 Pod::Spec.new do |s|
   s.name         = 'EodinSDK'
-  s.version      = '1.0.0'
+  s.version      = '2.0.0-beta.2'
   s.summary      = 'Eodin SDK for iOS - Deferred Deep Links and Analytics'
-  s.homepage     = 'https://github.com/AJLogic/eodin'
+  s.homepage     = 'https://github.com/ahn283/eodin-sdk'
   s.license      = 'MIT'
   s.author       = 'EODIN Team'
-  s.source       = { git: 'https://github.com/AJLogic/eodin.git', tag: s.version.to_s }
+  s.source       = { git: 'https://github.com/ahn283/eodin-sdk.git', tag: "v#{s.version}" }
   s.ios.deployment_target = '13.0'
   s.swift_version = '5.9'
 

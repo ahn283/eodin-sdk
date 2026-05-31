@@ -16,7 +16,7 @@ Add to your app's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("app.eodin:deeplink-sdk:1.0.0")
+    implementation("app.eodin:eodin-sdk:2.0.0-beta.2")
 }
 ```
 
@@ -26,9 +26,12 @@ Add to your app's `build.gradle`:
 
 ```groovy
 dependencies {
-    implementation 'app.eodin:deeplink-sdk:1.0.0'
+    implementation 'app.eodin:eodin-sdk:2.0.0-beta.2'
 }
 ```
+
+The Play Install Referrer client (`com.android.installreferrer:installreferrer`)
+is bundled as a transitive dependency — you do not add it yourself.
 
 ## Quick Start
 
@@ -156,19 +159,36 @@ sealed class EodinException(message: String) : Exception(message) {
 ## How It Works
 
 1. User clicks an Eodin deep link (`link.eodin.app/your-service/resource-id`)
-2. Web service detects app is not installed
-3. Server generates device fingerprint and stores deferred parameters
-4. User is redirected to Play Store
-5. After installation, SDK calls API with matching fingerprint
-6. Server returns stored parameters, SDK triggers navigation
+2. The web landing page records the click (destination + a click token) and
+   redirects the user to the Play Store
+3. After installation, the SDK reads the **Play Install Referrer** and calls the
+   deferred-params API, scoped to your `service`
+4. The server matches the install and returns the stored parameters
+5. The SDK resolves `checkDeferredParams()` with the path, and your app navigates
 
-### Device Fingerprinting
+### Matching mechanism
 
-The SDK uses Android ID combined with device characteristics to generate a consistent fingerprint. This fingerprint:
+| Install source | Mechanism | Reliability |
+|---|---|---|
+| **Play Store install** | Google Play **Install Referrer** carries an `eodin_cid` click token → exact server lookup | Deterministic (100%) |
+| **Sideload / non-Play** | hashed device signal → server probabilistic match | Best-effort |
+
+The SDK reads the Play Install Referrer automatically (bundled dependency
+`com.android.installreferrer:installreferrer:2.2`), off the main thread with a
+timeout, and caches the result in `SharedPreferences` so it is read once. When a
+Play install carries the `eodin_cid` token the match is deterministic; otherwise
+it falls back to a hashed device signal for a server-side probabilistic match.
+See
+[`docs/deeplink-reliability/phase3-design.md`](https://github.com/ahn283/eodin-sdk/blob/main/docs/deeplink-reliability/phase3-design.md).
+
+The hashed device signal:
 - Does NOT require special permissions (uses INTERNET only)
-- Is NOT advertising ID (GAID)
-- Is consistent within your app
-- Expires on server after 24 hours for privacy
+- Is NOT the advertising ID (GAID)
+
+> **Call once.** The Install Referrer is read once and cached in
+> `SharedPreferences`, and the server atomically claims a matched click on first
+> success — so calling `checkDeferredParams` again is cheap and won't
+> re-attribute (a later call simply throws `NoParamsFound`).
 
 ## Permissions
 

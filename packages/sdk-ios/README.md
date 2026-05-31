@@ -16,13 +16,16 @@ Add the following to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/your-org/eodin", from: "1.0.0")
+    .package(url: "https://github.com/ahn283/eodin-sdk.git", from: "2.0.0-beta.2")
 ]
 ```
 
+> No `v2.0.0-beta.2` tag has been pushed yet — until one exists, pin to a branch
+> or commit instead, e.g. `.package(url: ..., revision: "<commit-sha>")`.
+
 Or in Xcode:
 1. File → Add Package Dependencies
-2. Enter the repository URL
+2. Enter the repository URL `https://github.com/ahn283/eodin-sdk.git`
 3. Select the `EodinDeeplink` product
 
 ## Quick Start
@@ -158,19 +161,32 @@ enum EodinError: Error {
 ## How It Works
 
 1. User clicks an Eodin deep link (`link.eodin.app/your-service/resource-id`)
-2. Web service detects app is not installed
-3. Server generates device fingerprint and stores deferred parameters
-4. User is redirected to App Store
-5. After installation, SDK calls API with matching fingerprint
-6. Server returns stored parameters, SDK triggers navigation
+2. The web landing page records the click (destination + the visitor's IP) and
+   redirects the user to the App Store
+3. After installation, the SDK calls the deferred-params API scoped to your
+   `service`
+4. The **server matches the install to the original click by IP** within a short
+   time window and returns the stored parameters
+5. The SDK resolves `checkDeferredParams()` with the path, and your app navigates
 
-### Device Fingerprinting
+### Matching mechanism (iOS = server-side probabilistic)
 
-The SDK uses IDFV (Identifier for Vendor) combined with device characteristics to generate a consistent fingerprint. This fingerprint:
-- Does NOT require user permission
-- Is NOT advertising identifier (IDFA)
-- Is consistent within your app across reinstalls
-- Expires on server after 24 hours for privacy
+iOS has no equivalent of Android's Play Install Referrer, so matching is
+**probabilistic, performed server-side on the click IP**. It is best-effort, not
+100% deterministic — design your UX so a miss simply lands the user on the normal
+home screen. To reduce ambiguity the server only attributes when the IP maps to a
+single recent click. See
+[`docs/deeplink-reliability/phase3-design.md`](https://github.com/ahn283/eodin-sdk/blob/main/docs/deeplink-reliability/phase3-design.md).
+
+The SDK sends a hashed device signal (derived from IDFV + device
+characteristics) alongside the request. It:
+- Does NOT require user permission (no ATT prompt for deferred deep linking)
+- Is NOT the advertising identifier (IDFA)
+- Is not relied upon for the primary match (the server uses the click IP)
+
+> **Call once.** The iOS SDK does not keep a client-side "claimed" flag — the
+> **server atomically claims** each click on the first successful match, so a
+> later call returns `.noParamsFound` rather than re-attributing the same install.
 
 ## Best Practices
 

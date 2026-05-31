@@ -1,7 +1,7 @@
 # Eodin SDK v1 → v2 Migration Guide
 
-**Target SDK**: `2.0.0-beta.1`
-**Last Updated**: 2026-05-02
+**Target SDK**: `2.0.0-beta.2`
+**Last Updated**: 2026-05-30
 **Audience**: 5개 기존 호스트 앱 (fridgify / plori / tempy / arden / kidstopia) 마이그 담당자
 
 > 신규 앱 채택 가이드는 `integration-guide.md` 참조.
@@ -26,8 +26,14 @@
 | 1.6 | Capacitor `track({eventName, properties})` → **`track(eventName, properties)`** positional | kidstopia 호출부 2곳 변경 (BREAKING) |
 | 1.6 | Capacitor `identify({userId})` → **`identify(userId)`** positional | kidstopia 호출부 1곳 변경 (BREAKING) |
 | 1.9 | Capacitor web.ts throw → 동작 | kidstopia PWA 사용자 분석 첫 수집 (의도된 동작 변경) |
+| beta.2 | deferred 매칭 결정론/확률 재설계 (Android Play Install Referrer + iOS 서버 IP 확률) | **public surface 불변** — 코드 변경 없음. 단 채택하려면 SDK bump + **앱 재출시** 필요 (아래 참조) |
 
-**시점**: SDK `v2.0.0-beta.1` git tag 가 `ahn283/eodin-sdk` 에 push 된 후 시작. main branch 에 v2 가 push 돼도 ref tag pin 으로 호스트 앱은 안전.
+**시점**: SDK `v2.0.0-beta.2` git tag 가 `ahn283/eodin-sdk` 에 push 된 후 시작. main branch 에 v2 가 push 돼도 ref tag pin 으로 호스트 앱은 안전. (태그 미생성 시 beta.2 코드를 포함하는 브랜치/커밋 SHA 로 pin.)
+
+> **beta.2 deferred 동작 변경 (deeplink-reliability)** — `checkDeferredParams()` / `params.path` **public API 는 그대로**라 마이그 코드 변경은 없다. 다만 동작이 바뀐다:
+> - **Android**: Play **Install Referrer** 기반 결정론 매칭으로 전환. 신규 transitive 의존성(`com.android.installreferrer` / Flutter `android_play_install_referrer`)이 **번들**되며, 결정론 매칭은 **beta.2 빌드를 Play 스토어로 재출시**해야 적용된다(사이드로드/`flutter run` 은 확률 fallback).
+> - **iOS**: 서버사이드 IP 확률 매칭. 앱 코드 변경·ATT 동의 모두 불필요(서버가 클릭 IP 사용).
+> - **공통**: 매칭 실패는 정상 — **에러 화면 금지, 일반 홈/온보딩으로 graceful 진입**(F-9). no-match 표면은 채널마다 다르다: Flutter `NoParamsFound` throw / Capacitor **native reject** · web `hasParams:false` / iOS·Android `.noParamsFound`. 자세한 동작·신뢰도 표는 [`integration-guide.md` §3](./integration-guide.md#3-채널별-통합) 참조.
 
 **리스크 평가** (코드리뷰 + Phase 0 audit 결과):
 - Flutter 4개: import 일괄 변경 (sed) — 회귀 리스크 **낮음**
@@ -43,10 +49,10 @@
 ```bash
 # eodin-sdk 저장소
 git ls-remote --tags https://github.com/ahn283/eodin-sdk.git | grep v2.0.0
-# → refs/tags/v2.0.0-beta.1 가 존재해야 함
+# → refs/tags/v2.0.0-beta.2 가 존재해야 함
 ```
 
-태그가 없으면 SDK 팀이 Phase 1.10 릴리스 작업을 먼저 완료해야 한다.
+태그가 없으면 beta.2 코드를 포함하는 브랜치/커밋 SHA 로 pin 한다 (deferred 결정론은 beta.2 코드부터 동작).
 
 ### 2.2 Staging API key 발급
 
@@ -124,7 +130,7 @@ dependencies:
     git:
       url: https://github.com/ahn283/eodin-sdk.git
       path: packages/sdk-flutter
-      ref: v2.0.0-beta.1     # tag pin 권장
+      ref: v2.0.0-beta.2     # tag pin 권장 (deferred 결정론은 beta.2 코드부터)
 ```
 
 #### 4.1.2 import 일괄 변경 (sed)
@@ -265,7 +271,7 @@ dependencies:
     git:
       url: https://github.com/ahn283/eodin-sdk.git
       path: packages/sdk-flutter
-      ref: v2.0.0-beta.1
+      ref: v2.0.0-beta.2
 ```
 
 #### 4.2.3 4.1 의 import / endpoint / 빌드 단계 동일 적용
@@ -287,10 +293,10 @@ dependencies:
 cd /path/to/eodin-sdk/packages/capacitor
 npm run build
 npm pack
-# → eodin-capacitor-2.0.0-beta.1.tgz 생성
+# → eodin-capacitor-2.0.0-beta.2.tgz 생성
 
 # kidstopia 로 복사
-cp eodin-capacitor-2.0.0-beta.1.tgz /path/to/kidstopia/vendor/
+cp eodin-capacitor-2.0.0-beta.2.tgz /path/to/kidstopia/vendor/
 rm /path/to/kidstopia/vendor/eodin-capacitor-1.0.0.tgz
 ```
 
@@ -299,7 +305,7 @@ rm /path/to/kidstopia/vendor/eodin-capacitor-1.0.0.tgz
 ```json
 {
   "dependencies": {
-    "@eodin/capacitor": "file:vendor/eodin-capacitor-2.0.0-beta.1.tgz"
+    "@eodin/capacitor": "file:vendor/eodin-capacitor-2.0.0-beta.2.tgz"
   }
 }
 ```
@@ -324,7 +330,7 @@ cp eodin-web-1.0.0-beta.1.tgz /path/to/kidstopia/vendor/
 ```json
 {
   "dependencies": {
-    "@eodin/capacitor": "file:vendor/eodin-capacitor-2.0.0-beta.1.tgz",
+    "@eodin/capacitor": "file:vendor/eodin-capacitor-2.0.0-beta.2.tgz",
     "eodin-web": "file:vendor/eodin-web-1.0.0-beta.1.tgz"
   }
 }
